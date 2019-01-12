@@ -23,8 +23,8 @@ class PathPlanningODE():
 
     def __init__(self,
                  starting_coordinate = (0,0),
-                 ending_coordinate = (1,1),
-                 NUM_OF_STEPS = 10,
+                 ending_coordinate = (10,10),
+                 NUM_OF_STEPS = 20,
                  ):
 
         # Initialize obstacle list
@@ -49,7 +49,7 @@ class PathPlanningODE():
         # Create random coordinate if not specified
         if coordinate is None:
 
-            coordinate = (np.random.rand(), np.random.rand())
+            coordinate = (10*np.random.rand(), 10*np.random.rand())
 
         # Create new obstacle
         obstacle = Obstacle(coordinate)
