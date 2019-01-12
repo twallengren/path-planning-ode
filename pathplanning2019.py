@@ -44,7 +44,7 @@ class PathPlanningODE():
     def __init__(self,
                  starting_coordinate = (-2,-2),
                  ending_coordinate = (12,12),
-                 NUM_OF_STEPS = 12,
+                 NUM_OF_STEPS = 20,
                  ):
 
         # Initialize obstacle list
@@ -85,6 +85,25 @@ class PathPlanningODE():
 
         # Add obstacle to cost function
         self.Ode.add_to_cost(obstacle)
+
+        # Update ODE
+        self.Ode.update_ode()
+
+    def create_obstacles(self,
+                         NUM_OF_OBSTACLES=10,
+                         ):
+
+        for i in range(NUM_OF_OBSTACLES):
+
+            coordinate = (10*np.random.rand(), 10*np.random.rand())
+
+            obstacle = Obstacle(coordinate)
+
+            self.obstacle_list.append(obstacle)
+
+            self.Ode.add_to_cost(obstacle)
+
+        self.Ode.update_ode()
 
     def update_path(self):
 
@@ -155,6 +174,7 @@ class PathPlanningODE():
 
     def animate_solver(self,
                        NUM_OF_FRAMES=100,
+                       save=False,
                        ):
 
         # Create figure
@@ -187,6 +207,41 @@ class PathPlanningODE():
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
         anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=50, blit=True)
+
+        if save:
+
+            anim.save('solver_animation.mp4', fps=10, extra_args=['-vcodec', 'libx264'])
+
+        plt.show()
+
+    def animate_rover(self):
+    
+        # Create figure
+        fig = plt.figure()
+
+        # Add axes
+        ax = plt.axes(xlim=(self.Rover.starting_coordinate[0] - 1, self.Rover.ending_coordinate[0] + 1), ylim=(self.Rover.starting_coordinate[1] - 1, self.Rover.ending_coordinate[1] + 1))
+
+        # Plot obstacles
+        for obstacle in self.obstacle_list:
+
+            ax.plot(obstacle.coordinate[0], obstacle.coordinate[1], 'x')
+
+        # Initialize rover
+        rov, = ax.plot([], [], 'ro')
+
+        # initialization function: plot the background of each frame
+        def init():
+            rov.set_data([], [])
+            return rov,
+
+        # animation function.  This is called sequentially
+        def animate(i):
+            rov.set_data(self.Path.path[0][i], self.Path.path[1][i])
+            return rov,
+
+        # call the animator.  blit=True means only re-draw the parts that have changed.
+        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=self.NUM_OF_STEPS, interval=100, blit=True)
 
         plt.show()
         
@@ -282,7 +337,7 @@ class Path():
         self.path_func = new_function
 
         # Set new guess path with t ranging from 0 to 1
-        self.path = self.path_func(np.linspace(0, 1, NUM_OF_STEPS))
+        self.path = self.path_func(np.linspace(0, 1, self.NUM_OF_STEPS))
 
     def update_path(self, new_path):
 
@@ -334,9 +389,6 @@ class ODE():
 
         # Append coordinate to cost function with appropriate term
         self.cost += obstacle.weight*sp.exp(-((-self.xs + xcoord)**2 + (-self.ys + ycoord)**2))
-
-        # Update primary symbolic ODE
-        self.update_ode()
 
     def update_ode(self):
 
@@ -475,12 +527,12 @@ class ODE():
 ################################################################################
 # Define script behavior
 
-if __name__ == '__main__':
-
-    pp = PathPlanningODE(NUM_OF_STEPS=20)
-
-    for i in range(10):
-        pp.create_obstacle()
-
-    pp.animate_solver()
+##if __name__ == '__main__':
+##
+##    pp = PathPlanningODE()
+##
+##    for i in range(10):
+##        pp.create_obstacle()
+##
+##    pp.animate_solver()
 
