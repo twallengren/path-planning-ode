@@ -10,6 +10,7 @@ https://www.youtube.com/watch?v=fNBrIngCJp8&t=9s
 # Import necessary libraries
 import numpy as np
 import sympy as sp
+import utils
 
 ################################################################################
 ################################################################################
@@ -28,6 +29,9 @@ class PathPlanningODE():
 
         # Initialize obstacle list
         self.obstacle_list = []
+
+        # Add NUM_OF_STEPS to class variables
+        self.NUM_OF_STEPS = NUM_OF_STEPS
 
         # Create instance of rover object
         self.Rover = Rover(starting_coordinate, ending_coordinate)
@@ -55,6 +59,41 @@ class PathPlanningODE():
 
         # Add obstacle to cost function
         self.ode.add_to_cost(obstacle)
+
+    def update_path(self):
+
+        # Get step size (change in time for each point in parametrized path)
+        self.step_size = self.Path.time_list[1]
+
+        # Create solution vector with 2*NUM_OF_STEPS rows and 1 column
+        # First half are path x-coordinates, second half are path y-coordinates
+        self.next_path = np.concatenate((self.Path.path[0][1:self.NUM_OF_STEPS+1],
+                                         self.Path.path[1][1:self.NUM_OF_STEPS+1]),
+                                         axis=None)
+
+        # Initialize array for calculating ode delta
+        self.delta = np.zeros([2*self.NUM_OF_STEPS,1])
+
+        # Define input to calculate delta at beginning of path
+        x0, x1, x2 = self.Rover.starting_coordinate[0], self.next_path[0], self.next_path[1]
+        y0, y1, y2 = self.Rover.starting_coordinate[1], self.next_path[self.NUM_OF_STEPS], self.next_path[self.NUM_OF_STEPS+1]
+
+        # Calculate first set of ode deltas
+        self.delta[0], self.delta[self.NUM_OF_STEPS] = self.ode.ode_delta(x0, x1, x2, y0, y1, y2, self.step_size)
+
+        # Loop to calculate intermediate ode deltas
+        for i in range(1,self.NUM_OF_STEPS-1):
+            self.delta[i], self.delta[self.NUM_OF_STEPS+i] = self.ode.ode_delta(self.next_path[i-1],self.next_path[i],self.next_path[i+1],self.next_path[self.NUM_OF_STEPS-1+i],self.next_path[self.NUM_OF_STEPS+i],self.next_path[self.NUM_OF_STEPS+1+i],self.step_size)
+
+
+        # Define input to calculate delta at beginning of path
+        x0, x1, x2 = self.next_path[self.NUM_OF_STEPS-2], self.next_path[self.NUM_OF_STEPS-1], self.Rover.ending_coordinate[0]
+        y0, y1, y2 = self.next_path[2*self.NUM_OF_STEPS-2], self.next_path[2*self.NUM_OF_STEPS-1], self.Rover.ending_coordinate[1]
+        
+        # Calculate final ODE delta
+        self.delta[self.NUM_OF_STEPS-1], self.delta[2*self.NUM_OF_STEPS-1] = self.ode.ode_delta(x0, x1, x2, y0, y1, y2, self.step_size)
+
+        print(self.delta)
         
 ################################################################################
 ################################################################################
@@ -117,9 +156,18 @@ class Path():
                  NUM_OF_STEPS = 10,
                  ):
 
-        # Initialize straight line between rover start and end coordinates
-        self.path_x = np.linspace(Rover.starting_coordinate[0], Rover.ending_coordinate[0], NUM_OF_STEPS)
-        self.path_y = np.linspace(Rover.starting_coordinate[1], Rover.ending_coordinate[1], NUM_OF_STEPS)
+        # Get rover coordinates
+        startxcoord, startycoord = Rover.starting_coordinate
+        endxcoord, endycoord = Rover.ending_coordinate
+
+        # Initialize guess path function (builds a straight line parametrized by t)
+        self.path_func = lambda t: (startxcoord * (1-t) + endxcoord * t, startycoord * (1-t) + endycoord * t)
+
+        # Set time list with defined number of steps
+        self.time_list = np.linspace(0, 1, NUM_OF_STEPS + 2)
+
+        # Initialize guess path with t ranging from 0 to 1
+        self.path = self.path_func(self.time_list)
 
         # Initialize path modification count (for use in __repr__ method)
         self.mod_count = 0
@@ -127,6 +175,16 @@ class Path():
     def __repr__(self):
 
         return str(f"The path has been modified {self.mod_count} times.")
+
+    def change_guess_func(self,
+                          new_function,
+                          ):
+
+        # Set new path function
+        self.path_func = new_function
+
+        # Set new guess path with t ranging from 0 to 1
+        self.path = self.path_func(np.linspace(0, 1, NUM_OF_STEPS))
                  
 ################################################################################
 ################################################################################
@@ -175,6 +233,35 @@ class ODE():
         denom = 2*self.cost
 
         # Update primary symbolic ODE
-        self.x_double_prime = (costx*(self.yps**2 - self.xps**2) - 2*costy*self.xps*self.yps)/denom
-        self.y_double_prime = (costy*(self.xps**2 - self.yps**2) - 2*costx*self.xps*self.yps)/denom
+        self.f = (costx*(self.yps**2 - self.xps**2) - 2*costy*self.xps*self.yps)/denom
+        self.g = (costy*(self.xps**2 - self.yps**2) - 2*costx*self.xps*self.yps)/denom
 
+        # Update various derivatives used in the solver
+        self.fx = sp.diff(self.f,self.xs)
+        self.gx = sp.diff(self.g,self.xs)
+        self.fxp = sp.diff(self.f,self.xps)
+        self.gxp = sp.diff(self.g,self.xps)
+        self.fy = sp.diff(self.f,self.ys)
+        self.gy = sp.diff(self.g,self.ys)
+        self.fyp = sp.diff(self.f,self.yps)
+        self.gyp = sp.diff(self.g,self.yps)
+
+        # "Lambdify" all symbolic functions
+        # Allows calls to evaluate functions at specific points
+        self.F = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.f)
+        self.G = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.g)
+        self.Fx = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.fx)
+        self.Gx = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.gx)
+        self.Fxp = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.fxp)
+        self.Gxp = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.gxp)
+        self.Fy = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.fy)
+        self.Gy = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.gy)
+        self.Fyp = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.fyp)
+        self.Gyp = sp.lambdify((self.xs,self.ys,self.xps,self.yps),self.gyp)
+
+    def ode_delta(self, x0, x1, x2, y0, y1, y2, h):
+
+        xout = (x2 - 2*x1 + x0)/h - self.F(x1,y1,(x2-x0)/(2*h),(y2-y0)/(2*h))
+        yout = (y2 - 2*y1 + y0)/h - self.G(x1,y1,(x2-x0)/(2*h),(y2-y0)/(2*h))
+
+        return xout, yout
