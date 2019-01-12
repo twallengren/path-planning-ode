@@ -26,3 +26,9 @@ The main API is the PathPlanningODE class.
 
 >>> pp_instance.Path.path to access x & y coordinates of solution path
 
+## SAMPLE USAGE
+
+import pathplanning2019
+pp = PathPlanningODE()
+pp.create_obstacles()
+pp.animate_solver()
