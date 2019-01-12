@@ -16,12 +16,17 @@ When run as a script, it will drop 5 obstacles in at random, attempt to solve th
 
 The main API is the PathPlanningODE class. 
 
--pp_instance = PathPlanningODE(startingcoordinate (tuple, optional), endingcoordinate (tuple, optional)) to create instance of class
+>>> pp_instance = PathPlanningODE(startingcoordinate (tuple, optional), endingcoordinate (tuple, optional)) to create instance of class
 
--pp_instance.create_obstacle() to create random obstacle
+>>> pp_instance.create_obstacle() to create random obstacle
 
--pp_instance.create_obstacle((xcoordinate, ycoordinate)) to create obstacle at specific location
+>>> pp_instance.create_obstacle((xcoordinate, ycoordinate)) to create obstacle at specific location
 
--pp_instance.update_path() to iterate Newton's Method
+>>> pp_instance.update_path() to iterate Newton's Method
 
--pp_instance.show_solution() to display current results
+>>> pp_instance.show_solution() to display current results
+
+
+
+
+Hopefully this is simpler to use. The code to run the script behavior is literally 6 lines long which seems like good news to me.
