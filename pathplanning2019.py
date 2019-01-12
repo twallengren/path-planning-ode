@@ -11,6 +11,7 @@ https://www.youtube.com/watch?v=fNBrIngCJp8&t=9s
 import numpy as np
 import sympy as sp
 import matplotlib.pyplot as plt
+from matplotlib import animation
 import time
 
 ################################################################################
@@ -160,7 +161,43 @@ class PathPlanningODE():
 
         # Show plot
         plt.show(1)
-        
+
+    def animate_solver(self,
+                       NUM_OF_FRAMES=50,
+                       ):
+
+        # Create figure
+        fig = plt.figure()
+
+        # Add axes
+        ax = plt.axes(xlim=(self.Rover.starting_coordinate[0] - 1, self.Rover.ending_coordinate[0] + 1), ylim=(self.Rover.starting_coordinate[1] - 1, self.Rover.ending_coordinate[1] + 1))
+
+        # Plot rover
+        ax.plot(self.Rover.current_coordinate[0], self.Rover.current_coordinate[1], 'ro')
+
+        # Plot obstacles
+        for obstacle in self.obstacle_list:
+
+            ax.plot(obstacle.coordinate[0], obstacle.coordinate[1], 'x')
+
+        # Initialize solution line
+        line, = ax.plot([], [], lw=2)
+
+        # initialization function: plot the background of each frame
+        def init():
+            line.set_data([], [])
+            return line,
+
+        # animation function.  This is called sequentially
+        def animate(i):
+            self.update_path()
+            line.set_data(self.Path.path[0], self.Path.path[1])
+            return line,
+
+        # call the animator.  blit=True means only re-draw the parts that have changed.
+        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=100, blit=True)
+
+        plt.show()
         
 ################################################################################
 ################################################################################
@@ -445,15 +482,12 @@ class ODE():
 ################################################################################
 # Define script behavior
 
-##if __name__ == '__main__':
-##
-##    pp = PathPlanningODE()
-##
-##    for i in range(5):
-##        pp.create_obstacle()
-##
-##    for i in range(50):
-##        pp.update_path()
-##
-##    pp.show_solution()
+if __name__ == '__main__':
+
+    pp = PathPlanningODE()
+
+    for i in range(5):
+        pp.create_obstacle()
+
+    pp.animate_solver()
 
