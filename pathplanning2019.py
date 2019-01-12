@@ -11,6 +11,7 @@ https://www.youtube.com/watch?v=fNBrIngCJp8&t=9s
 import numpy as np
 import sympy as sp
 import matplotlib.pyplot as plt
+import time
 
 ################################################################################
 ################################################################################
@@ -19,6 +20,25 @@ import matplotlib.pyplot as plt
 class PathPlanningODE():
     """
     This class is the main API for the path planning program.
+
+    USAGE:
+
+    To initialize a path planning object:
+    pp = PathPlanningODE(
+        starting_coordinates, # tuple - Default (-2,-2) - starting coordinate of rover
+        ending_coordinate, # tuple - Default (12, 12) - ending coordinate of rover
+        NUM_OF_STEPS, # int - Default 12 - how many pieces to break the path into
+        )
+
+    To create an obstacle in the path planning object:
+    pp.create_obstacle(
+        coordinate, # tuple - Default (5, 5) - coordinate of obstacle
+        weight, # float >= 1.0 - Default 1.0 - weight of obstacle term in cost function
+        )                                    - makes the obstacle 'bigger'
+
+    To do an iteration of Newton's Method (how the path planning problem is progressively solved)
+    pp.update_path()
+    
     """
 
     def __init__(self,
@@ -42,9 +62,23 @@ class PathPlanningODE():
         # Create ODE object to solve
         self.Ode = ODE()
 
+    def __getitem__(self, index):
+
+        self.update_path()
+
+        self.show_solution()
+
+        return self.Path.path
+
     def create_obstacle(self,
                        coordinate = None,
+                        weight = 1.0,
                        ):
+
+        if weight < 1.0:
+
+            print('Minimum value for obstacle weight is 1.0')
+            return
 
         # Create random coordinate if not specified
         if coordinate is None:
@@ -107,19 +141,25 @@ class PathPlanningODE():
 
     def show_solution(self):
 
+        # Create figure
+        plt.figure(1)
+
+        # Add axes
+        ax = plt.axes(xlim=(self.Rover.starting_coordinate[0] - 1, self.Rover.ending_coordinate[0] + 1), ylim=(self.Rover.starting_coordinate[1] - 1, self.Rover.ending_coordinate[1] + 1))
+
         # Plot rover
-        plt.plot(self.Rover.current_coordinate[0], self.Rover.current_coordinate[1], 'ro')
+        ax.plot(self.Rover.current_coordinate[0], self.Rover.current_coordinate[1], 'ro')
 
         # Plot obstacles
         for obstacle in self.obstacle_list:
 
-            plt.plot(obstacle.coordinate[0], obstacle.coordinate[1], 'x')
+            ax.plot(obstacle.coordinate[0], obstacle.coordinate[1], 'x')
 
         # Plot solution
-        plt.plot(self.Path.path[0], self.Path.path[1])
+        ax.plot(self.Path.path[0], self.Path.path[1])
 
         # Show plot
-        plt.show()
+        plt.show(1)
         
         
 ################################################################################
@@ -133,7 +173,7 @@ class Rover():
 
     def __init__(self,
                  starting_coordinate = (0, 0),
-                 ending_coordinate = (1, 1),
+                 ending_coordinate = (10, 10),
                  ):
 
         # Store starting and ending coordinates on self
@@ -157,7 +197,7 @@ class Obstacle():
     """
 
     def __init__(self,
-                 coordinate = (0.5, 0.5),
+                 coordinate = (5, 5),
                  weight = 1,
                  ):
 
@@ -263,7 +303,7 @@ class ODE():
         xcoord, ycoord = obstacle.coordinate
 
         # Append coordinate to cost function with appropriate term
-        self.cost += sp.exp(-((-self.xs + xcoord)**2 + (-self.ys + ycoord)**2))
+        self.cost += obstacle.weight*sp.exp(-((-self.xs + xcoord)**2 + (-self.ys + ycoord)**2))
 
         # Update primary symbolic ODE
         self.update_ode()
@@ -405,15 +445,15 @@ class ODE():
 ################################################################################
 # Define script behavior
 
-if __name__ == '__main__':
-
-    pp = PathPlanningODE()
-
-    for i in range(5):
-        pp.create_obstacle()
-
-    for i in range(50):
-        pp.update_path()
-
-    pp.show_solution()
+##if __name__ == '__main__':
+##
+##    pp = PathPlanningODE()
+##
+##    for i in range(5):
+##        pp.create_obstacle()
+##
+##    for i in range(50):
+##        pp.update_path()
+##
+##    pp.show_solution()
 
