@@ -35,19 +35,26 @@ class PathPlanningODE():
         # Create initial guess path based on rover start/end coordinates
         self.Path = Path(self.Rover, NUM_OF_STEPS)
 
+        # Create ODE object to solve
+        self.ode = ODE()
+
     def create_obstacle(self,
-                       coordinate = (np.random.rand(), np.random.rand()),
+                       coordinate = None,
                        ):
 
+        # Create random coordinate if not specified
+        if coordinate is None:
+
+            coordinate = (np.random.rand(), np.random.rand())
+
+        # Create new obstacle
+        obstacle = Obstacle(coordinate)
+
         # Append obstace to obstacle list
-        self.obstacle_list.append(Obstacle(coordinate))
+        self.obstacle_list.append(obstacle)
 
-        # Add term for obstacle to cost function
-        cost += sp.exp(-((-xs + coordinate[0])**2 + (-ys + coordinate[1])**2))
-
-        print(cost)
-
-    
+        # Add obstacle to cost function
+        self.ode.add_to_cost(obstacle)
         
 ################################################################################
 ################################################################################
@@ -141,3 +148,33 @@ class ODE():
 
         # Initialize cost function
         self.cost = 1
+
+        # Initialize ODEs from video
+        self.update_ode()
+
+    def add_to_cost(self,
+                    obstacle,
+                    ):
+
+        # Get obstacle coordinates
+        xcoord, ycoord = obstacle.coordinate
+
+        # Append coordinate to cost function with appropriate term
+        self.cost += sp.exp(-((-self.xs + xcoord)**2 + (-self.ys + ycoord)**2))
+
+        # Update primary symbolic ODE
+        self.update_ode()
+
+    def update_ode(self):
+
+        # Take derivatives of cost function
+        costx = sp.diff(self.cost,self.xs)
+        costy = sp.diff(self.cost,self.ys)
+
+        # Create denominator
+        denom = 2*self.cost
+
+        # Update primary symbolic ODE
+        self.x_double_prime = (costx*(self.yps**2 - self.xps**2) - 2*costy*self.xps*self.yps)/denom
+        self.y_double_prime = (costy*(self.xps**2 - self.yps**2) - 2*costx*self.xps*self.yps)/denom
+
