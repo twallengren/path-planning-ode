@@ -28,7 +28,3 @@ The main API is the PathPlanningODE class.
 
 >>> pp_instance.animate_solver() to show animation of ODE solver in progress
 
-
-
-
-Hopefully this is simpler to use. The code to run the script behavior is literally 6 lines long which seems like good news to me.
