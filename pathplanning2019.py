@@ -9,7 +9,7 @@ https://www.youtube.com/watch?v=fNBrIngCJp8&t=9s
 ################################################################################
 # Import necessary libraries
 import numpy as np
-#import sympy as sp
+import sympy as sp
 
 ################################################################################
 ################################################################################
@@ -19,16 +19,6 @@ class PathPlanningODE():
     """
     This class is the main API for the path planning program.
     """
-
-    # Create symbolic variables (need symbolic to take derivatives)
-    #xs = sp.Symbol('xs') # 'xs' stands for x-symbolic
-    #ys = sp.Symbol('ys') # 'ys' stands for y-symbolic
-    #xps = sp.Symbol('xps') # 'xps' stands for xprime-symbolic
-    #yps = sp.Symbol('yps') # 'yps' stands for yprime-symbolic
-    #ts = sp.Symbol('ts') # 'ts' stands for t-symbolic (time)
-
-    # Initialize cost function
-    cost = 1
 
     def __init__(self,
                  starting_coordinate = (0,0),
@@ -53,9 +43,9 @@ class PathPlanningODE():
         self.obstacle_list.append(Obstacle(coordinate))
 
         # Add term for obstacle to cost function
-        #cost += sp.exp(-((-xs + coordinate[0])**2 + (-ys + coordinate[1])**2))
+        cost += sp.exp(-((-xs + coordinate[0])**2 + (-ys + coordinate[1])**2))
 
-        #print(cost)
+        print(cost)
 
     
         
@@ -131,3 +121,23 @@ class Path():
 
         return str(f"The path has been modified {self.mod_count} times.")
                  
+################################################################################
+################################################################################
+# Define ODE class
+
+class ODE():
+    """
+    This class represents the ODE that solves the path planning problem.
+    """
+
+    def __init__(self):
+
+        # Create symbolic variables (need symbolic to take derivatives)
+        self.xs = sp.Symbol('xs') # 'xs' stands for x-symbolic
+        self.ys = sp.Symbol('ys') # 'ys' stands for y-symbolic
+        self.xps = sp.Symbol('xps') # 'xps' stands for xprime-symbolic
+        self.yps = sp.Symbol('yps') # 'yps' stands for yprime-symbolic
+        self.ts = sp.Symbol('ts') # 'ts' stands for t-symbolic (time)
+
+        # Initialize cost function
+        self.cost = 1
