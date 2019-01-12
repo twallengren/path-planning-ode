@@ -26,6 +26,8 @@ The main API is the PathPlanningODE class.
 
 >>> pp_instance.show_solution() to display current results
 
+>>> pp_instance.animate_solver() to show animation of ODE solver in progress
+
 
 
 
