@@ -8,10 +8,6 @@ This is my revamped code for solving the autonomous path planning problem outlin
 -sympy
 -matplotlib
 
-## SCRIPT USAGE:
-
-When run as a script, it will drop 5 obstacles in at random, then animate the solution process.
-
 ## MODULE USAGE:
 
 The main API is the PathPlanningODE class. 
