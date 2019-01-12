@@ -14,8 +14,6 @@ The main API is the PathPlanningODE class.
 
 >>> pp_instance = PathPlanningODE(startingcoordinate (tuple, optional), endingcoordinate (tuple, optional)) to create instance of class
 
->>> pp_instance.create_obstacle() to create random obstacle
-
 >>> pp_instance.create_obstacles(number_of_obstacles) to create multiple obstacles at once - default 10
 
 >>> pp_instance.create_obstacle((xcoordinate, ycoordinate)) to create obstacle at specific location
