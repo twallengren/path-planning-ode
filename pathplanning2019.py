@@ -62,40 +62,14 @@ class PathPlanningODE():
         # Create ODE object to solve
         self.Ode = ODE()
 
-    def create_obstacle(self,
-                       coordinate = None,
-                        weight = 1.0,
-                       ):
-
-        if weight < 1.0:
-
-            print('Minimum value for obstacle weight is 1.0')
-            return
-
-        # Create random coordinate if not specified
-        if coordinate is None:
-
-            coordinate = (10*np.random.rand(), 10*np.random.rand())
-
-        # Create new obstacle
-        obstacle = Obstacle(coordinate)
-
-        # Append obstace to obstacle list
-        self.obstacle_list.append(obstacle)
-
-        # Add obstacle to cost function
-        self.Ode.add_to_cost(obstacle)
-
-        # Update ODE
-        self.Ode.update_ode()
-
     def create_obstacles(self,
                          NUM_OF_OBSTACLES=10,
+                         coordinates=None,
                          ):
 
-        for i in range(NUM_OF_OBSTACLES):
+        for i in range(NUM_OF_OBSTACLES if coordinates==None else len(coordinates)):
 
-            coordinate = (10*np.random.rand(), 10*np.random.rand())
+            coordinate = (10*np.random.rand(), 10*np.random.rand()) if coordinates==None else coordinates[i]
 
             obstacle = Obstacle(coordinate)
 
@@ -207,10 +181,6 @@ class PathPlanningODE():
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
         anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=50, blit=True)
-
-        if save:
-
-            anim.save('solver_animation.mp4', fps=10, extra_args=['-vcodec', 'libx264'])
 
         plt.show()
 
