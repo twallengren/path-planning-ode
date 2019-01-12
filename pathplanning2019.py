@@ -63,14 +63,6 @@ class PathPlanningODE():
         # Create ODE object to solve
         self.Ode = ODE()
 
-    def __getitem__(self, index):
-
-        self.update_path()
-
-        self.show_solution()
-
-        return self.Path.path
-
     def create_obstacle(self,
                        coordinate = None,
                         weight = 1.0,
@@ -163,7 +155,7 @@ class PathPlanningODE():
         plt.show(1)
 
     def animate_solver(self,
-                       NUM_OF_FRAMES=50,
+                       NUM_OF_FRAMES=100,
                        ):
 
         # Create figure
@@ -195,7 +187,7 @@ class PathPlanningODE():
             return line,
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
-        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=100, blit=True)
+        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=50, blit=True)
 
         plt.show()
         
@@ -307,6 +299,8 @@ class Path():
         soly[self.NUM_OF_STEPS+1] = self.endycoord
 
         self.path = solx, soly
+
+        self.mod_count += 1
                  
 ################################################################################
 ################################################################################
@@ -484,9 +478,9 @@ class ODE():
 
 if __name__ == '__main__':
 
-    pp = PathPlanningODE()
+    pp = PathPlanningODE(NUM_OF_STEPS=20)
 
-    for i in range(5):
+    for i in range(10):
         pp.create_obstacle()
 
     pp.animate_solver()
