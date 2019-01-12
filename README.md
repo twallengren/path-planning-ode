@@ -29,6 +29,9 @@ The main API is the PathPlanningODE class.
 ## SAMPLE USAGE
 
 import pathplanning2019
+
 pp = PathPlanningODE()
+
 pp.create_obstacles()
+
 pp.animate_solver()
