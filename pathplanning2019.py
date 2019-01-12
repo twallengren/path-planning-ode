@@ -22,9 +22,9 @@ class PathPlanningODE():
     """
 
     def __init__(self,
-                 starting_coordinate = (0,0),
-                 ending_coordinate = (10,10),
-                 NUM_OF_STEPS = 20,
+                 starting_coordinate = (-2,-2),
+                 ending_coordinate = (12,12),
+                 NUM_OF_STEPS = 12,
                  ):
 
         # Initialize obstacle list
@@ -400,3 +400,20 @@ class ODE():
                             (BETA[0] - solmat[N-2])/(2*h),(BETA[1] - solmat[2*N-2])/(2*h))
 
         return jac
+
+################################################################################
+################################################################################
+# Define script behavior
+
+if __name__ == '__main__':
+
+    pp = PathPlanningODE()
+
+    for i in range(5):
+        pp.create_obstacle()
+
+    for i in range(50):
+        pp.update_path()
+
+    pp.show_solution()
+
