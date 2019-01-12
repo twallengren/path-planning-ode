@@ -28,3 +28,5 @@ The main API is the PathPlanningODE class.
 
 >>> pp_instance.animate_rover() to show animation of rover following path
 
+>>> pp_instance.Path.path to access x & y coordinates of solution path
+
