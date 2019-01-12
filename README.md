@@ -16,8 +16,6 @@ The main API is the PathPlanningODE class.
 
 >>> pp_instance.create_obstacles(number_of_obstacles) to create multiple obstacles at once - default 10
 
->>> pp_instance.create_obstacle((xcoordinate, ycoordinate)) to create obstacle at specific location
-
 >>> pp_instance.update_path() to iterate Newton's Method
 
 >>> pp_instance.show_solution() to display current results
