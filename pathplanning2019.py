@@ -22,22 +22,35 @@ class PathPlanningODE():
     This class is the main API for the path planning program.
 
     USAGE:
-
-    To initialize a path planning object:
+    __________________________________
+    To initialize Path Planning Object:
     pp = PathPlanningODE(
-        starting_coordinates, # tuple - Default (-2,-2) - starting coordinate of rover
-        ending_coordinate, # tuple - Default (12, 12) - ending coordinate of rover
-        NUM_OF_STEPS, # int - Default 12 - how many pieces to break the path into
-        )
+                        starting_coordinate - tuple, (-2, -2) by default
+                        ending_coordinate - tuple, (12, 12) by default
+                        NUM_OF_STEPS - int, 20 by default
+                        )
 
-    To create an obstacle in the path planning object:
-    pp.create_obstacle(
-        coordinate, # tuple - Default (5, 5) - coordinate of obstacle
-        weight, # float >= 1.0 - Default 1.0 - weight of obstacle term in cost function
-        )                                    - makes the obstacle 'bigger'
+    __________________________________
+    To create obstacles in the Path Planning field:
+    pp.create_obstacles(
+                        NUM_OF_OBSTACLES - int, 10 by default
+                        coordinates - list of tuples, None by default
+                        )
 
-    To do an iteration of Newton's Method (how the path planning problem is progressively solved)
-    pp.update_path()
+        Example usage:
+
+            To place one obstacle at (5, 5)
+            pp.create_obstacles( obstacle=[(5,5)] )
+
+            To place two obstacles, one at (1,2) the other at (3,4)
+            pp.create_obstacles( obstacle=[(1,2), (3,4)] )
+
+            To place 5 obstacles randomly
+            pp.create_obstacles(5)
+
+    __________________________________
+            
+            
     
     """
 
@@ -297,7 +310,7 @@ class Path():
 
     def __repr__(self):
 
-        return str(f"The path has been modified {self.mod_count} times.")
+        return str(self.path)
 
     def change_guess_func(self,
                           new_function,
