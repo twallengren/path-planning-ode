@@ -97,6 +97,9 @@ class PathPlanningODE():
         # Calculate the error
         self.error = self.Path.check_path_error()
 
+        # Get step size (change in time for each point in parametrized path)
+        self.STEP_SIZE = self.Path.time_list[1]
+
     def create_obstacles(self,
                          NUM_OF_OBSTACLES=10,
                          coordinates=None,
@@ -115,9 +118,6 @@ class PathPlanningODE():
         self.Ode.update_ode()
 
     def update_path(self):
-
-        # Get step size (change in time for each point in parametrized path)
-        self.STEP_SIZE = self.Path.time_list[1]
 
         # Create solution vector with 2*NUM_OF_STEPS rows and 1 column
         # First half are path x-coordinates, second half are path y-coordinates
