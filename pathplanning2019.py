@@ -94,6 +94,9 @@ class PathPlanningODE():
         # Create ODE object to solve
         self.Ode = ODE()
 
+        # Calculate the error
+        self.error = self.Path.check_path_error()
+
     def create_obstacles(self,
                          NUM_OF_OBSTACLES=10,
                          coordinates=None,
@@ -155,6 +158,9 @@ class PathPlanningODE():
 
         # Update Path object
         self.Path.update_path(new_path)
+
+        # Update error
+        self.error = self.Path.check_path_error()
 
     def show_solution(self):
 
@@ -321,7 +327,10 @@ class Path():
         # Initialize guess path with t ranging from 0 to 1
         self.path = self.path_func(self.time_list)
 
-        # Initialize path modification count (for use in __repr__ method)
+        # Initialize another variable to store old path for error tracking
+        self.old_path = self.path
+
+        # Initialize path modification count
         self.mod_count = 0
 
         # Set NUM_OF_STEPS on class variabls
@@ -354,9 +363,23 @@ class Path():
         soly[1:self.NUM_OF_STEPS+1] = new_path[int(len(new_path)/2):int(len(new_path))]
         soly[self.NUM_OF_STEPS+1] = self.endycoord
 
+        self.old_path = self.path
         self.path = solx, soly
 
         self.mod_count += 1
+
+    def check_path_error(self):
+
+        path = np.array(self.path)
+        old_path = np.array(self.old_path)
+
+        if path.shape == old_path.shape:
+
+            return np.linalg.norm(path - old_path)
+
+        else:
+
+            return None
                  
 ################################################################################
 ################################################################################
