@@ -61,10 +61,12 @@ __________________________________
 
 ## SAMPLE USAGE
 
-import pathplanning2019 # import module
-
-pp = PathPlanningODE() # create instance of path planning object w/ default settings
-
-pp.create_obstacles() # create 10 randomly placed obstacles
-
-pp.animate_solver() # animate the solution process
+__________________________________
+    
+    import pathplanning 2019 # import module
+    
+    pp = PathPlanningODE() # create instance of path planning object w/ default settings
+    
+    pp.create_obstacles() # create 10 randomly placed obstacles
+    
+    pp.animate_solver() # animate the solution process
