@@ -24,6 +24,7 @@ class PathPlanningODE():
     USAGE:
     __________________________________
     To initialize Path Planning Object:
+    
     pp = PathPlanningODE(
                         starting_coordinate - tuple, (-2, -2) by default
                         ending_coordinate - tuple, (12, 12) by default
@@ -32,6 +33,7 @@ class PathPlanningODE():
 
     __________________________________
     To create obstacles in the Path Planning field:
+    
     pp.create_obstacles(
                         NUM_OF_OBSTACLES - int, 10 by default
                         coordinates - list of tuples, None by default
@@ -49,8 +51,25 @@ class PathPlanningODE():
             pp.create_obstacles(5)
 
     __________________________________
-            
-            
+    To show current state of path planning problem:
+    
+    pp.show_solution()
+
+    __________________________________
+    To do one iteration of Newton's Method (calculate new path based on current path):
+    
+    pp.update_path()
+
+    __________________________________
+    To watch an animation of the ODE sovler in action (this is fun - this is where you'll see it
+    trying to wiggle the path around into place):
+    
+    pp.animate_solver()
+
+    __________________________________
+    To watch the 'rover' follow the current path:
+    
+    pp.animate_rover()       
     
     """
 
