@@ -10,28 +10,61 @@ This is my revamped code for solving the autonomous path planning problem outlin
 
 ## MODULE USAGE:
 
-The main API is the PathPlanningODE class. 
+__________________________________
+    To initialize Path Planning Object:
+    
+    pp = PathPlanningODE(
+                        starting_coordinate - tuple, (-2, -2) by default
+                        ending_coordinate - tuple, (12, 12) by default
+                        NUM_OF_STEPS - int, 20 by default
+                        )
 
->>> pp_instance = PathPlanningODE(startingcoordinate (tuple, optional), endingcoordinate (tuple, optional)) to create instance of class
+    __________________________________
+    To create obstacles in the Path Planning field:
+    
+    pp.create_obstacles(
+                        NUM_OF_OBSTACLES - int, 10 by default
+                        coordinates - list of tuples, None by default
+                        )
 
->>> pp_instance.create_obstacles(number_of_obstacles) to create multiple obstacles at once - default 10
+        Example usage:
 
->>> pp_instance.update_path() to iterate Newton's Method
+            To place one obstacle at (5, 5)
+            pp.create_obstacles( obstacle=[(5,5)] )
 
->>> pp_instance.show_solution() to display current results
+            To place two obstacles, one at (1,2) the other at (3,4)
+            pp.create_obstacles( obstacle=[(1,2), (3,4)] )
 
->>> pp_instance.animate_solver() to show animation of ODE solver in progress
+            To place 5 obstacles randomly
+            pp.create_obstacles(5)
 
->>> pp_instance.animate_rover() to show animation of rover following path
+    __________________________________
+    To show current state of path planning problem:
+    
+    pp.show_solution()
 
->>> pp_instance.Path.path to access x & y coordinates of solution path
+    __________________________________
+    To do one iteration of Newton's Method (calculate new path based on current path):
+    
+    pp.update_path()
+
+    __________________________________
+    To watch an animation of the ODE sovler in action (this is fun - this is where you'll see it
+    trying to wiggle the path around into place):
+    
+    pp.animate_solver()
+
+    __________________________________
+    To watch the 'rover' follow the current path:
+    
+    pp.animate_rover()  
 
 ## SAMPLE USAGE
 
-import pathplanning2019
+import pathplanning2019 # import module
 
-pp = PathPlanningODE()
+pp = PathPlanningODE() # create instance of path planning object w/ default settings
 
-pp.create_obstacles()
+pp.create_obstacles() # create 10 randomly placed obstacles
 
-pp.animate_solver()
+pp.animate_solver() # animate the solution process
