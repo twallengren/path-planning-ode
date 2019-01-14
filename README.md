@@ -63,7 +63,7 @@ __________________________________
 
 __________________________________
     
-    import pathplanning 2019 # import module
+    import pathplanning2019 # import module
     
     pp = PathPlanningODE() # create instance of path planning object w/ default settings
     
