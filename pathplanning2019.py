@@ -219,7 +219,7 @@ class PathPlanningODE():
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
         anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=50, blit=True)
-
+    
         plt.show()
 
     def animate_rover(self):
@@ -252,6 +252,7 @@ class PathPlanningODE():
         anim = animation.FuncAnimation(fig, animate, init_func=init, frames=self.NUM_OF_STEPS, interval=100, blit=True)
 
         plt.show()
+
         
 ################################################################################
 ################################################################################
