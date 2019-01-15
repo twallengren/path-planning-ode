@@ -117,6 +117,22 @@ class PathPlanningODE():
 
         self.Ode.update_ode()
 
+    def clear_obstacles(self,
+                        coordinates=None,
+                        ):
+
+        for obstacle in self.obstacle_list:
+
+            obstacle.weight = -obstacle.weight
+
+            self.Ode.add_to_cost(obstacle)
+
+            del obstacle
+
+        self.obstacle_list = []
+
+        self.Ode.update_ode()
+
     def update_path(self):
 
         # Create solution vector with 2*NUM_OF_STEPS rows and 1 column
@@ -219,8 +235,14 @@ class PathPlanningODE():
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
         anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=50, blit=True)
-    
-        plt.show()
+
+        if save:
+            
+            anim.save('solver_animation.html')
+
+        else:
+            
+            plt.show()
 
     def animate_rover(self):
     
@@ -320,7 +342,7 @@ class Path():
         self.endxcoord, self.endycoord = Rover.ending_coordinate
 
         # Initialize guess path function (builds a straight line parametrized by t)
-        self.path_func = lambda t: (self.startxcoord * (1-t) + self.endxcoord * t, self.startycoord * (1-t) + self.endycoord * t)
+        self.path_func = self.create_path_func()
 
         # Set time list with defined number of steps
         self.time_list = np.linspace(0, 1, NUM_OF_STEPS + 2)
@@ -340,16 +362,6 @@ class Path():
     def __repr__(self):
 
         return str(self.path)
-
-    def change_guess_func(self,
-                          new_function,
-                          ):
-
-        # Set new path function
-        self.path_func = new_function
-
-        # Set new guess path with t ranging from 0 to 1
-        self.path = self.path_func(np.linspace(0, 1, self.NUM_OF_STEPS))
 
     def update_path(self, new_path):
 
@@ -381,6 +393,11 @@ class Path():
         else:
 
             return None
+
+    def create_path_func(self, x_exponent = 1, y_exponent = 1):
+
+        return lambda t: (self.startxcoord + (self.endxcoord - self.startxcoord)*t**x_exponent,
+                          self.startycoord + (self.endycoord - self.startycoord)*t**y_exponent)
                  
 ################################################################################
 ################################################################################
