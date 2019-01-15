@@ -81,7 +81,7 @@ class PathPlanningODE():
     def __init__(self,
                  starting_coordinate = (-2,-2),
                  ending_coordinate = (12,12),
-                 NUM_OF_STEPS = 20,
+                 NUM_OF_STEPS = 10,
                  ):
 
         # Initialize obstacle list
@@ -94,16 +94,15 @@ class PathPlanningODE():
         self.Rover = Rover(starting_coordinate, ending_coordinate)
 
         # Create initial guess path based on rover start/end coordinates
-        self.Path = Path(self.Rover, NUM_OF_STEPS)
+        self.Pathlist = [Path(self.Rover, NUM_OF_STEPS),
+                         Path(self.Rover, NUM_OF_STEPS, 1, 5),
+                         Path(self.Rover, NUM_OF_STEPS, 5, 1)]
 
         # Create ODE object to solve
         self.Ode = ODE()
 
-        # Calculate the error
-        self.error = self.Path.check_path_error()
-
         # Get step size (change in time for each point in parametrized path)
-        self.STEP_SIZE = self.Path.time_list[1]
+        self.STEP_SIZE = 1/NUM_OF_STEPS
 
     def create_obstacles(self,
                          NUM_OF_OBSTACLES=10,
@@ -140,48 +139,47 @@ class PathPlanningODE():
 
     def update_path(self):
 
-        # Create solution vector with 2*NUM_OF_STEPS rows and 1 column
-        # First half are path x-coordinates, second half are path y-coordinates
-        old_path = np.concatenate((self.Path.path[0][1:self.NUM_OF_STEPS+1],
-                                         self.Path.path[1][1:self.NUM_OF_STEPS+1]),
-                                         axis=None).reshape(-1, 1)
+        for Path in self.Pathlist:
 
-        # Initialize array for calculating ode delta
-        delta = np.zeros([2*self.NUM_OF_STEPS,1])
+            # Create solution vector with 2*NUM_OF_STEPS rows and 1 column
+            # First half are path x-coordinates, second half are path y-coordinates
+            old_path = np.concatenate((Path.path[0][1:self.NUM_OF_STEPS+1],
+                                             Path.path[1][1:self.NUM_OF_STEPS+1]),
+                                             axis=None).reshape(-1, 1)
 
-        # Define input to calculate delta at beginning of path
-        x0, x1, x2 = self.Rover.starting_coordinate[0], old_path[0], old_path[1]
-        y0, y1, y2 = self.Rover.starting_coordinate[1], old_path[self.NUM_OF_STEPS], old_path[self.NUM_OF_STEPS+1]
+            # Initialize array for calculating ode delta
+            delta = np.zeros([2*self.NUM_OF_STEPS,1])
 
-        # Calculate first set of ode deltas
-        delta[0], delta[self.NUM_OF_STEPS] = self.Ode.ode_delta(x0, x1, x2, y0, y1, y2, self.STEP_SIZE)
+            # Define input to calculate delta at beginning of path
+            x0, x1, x2 = self.Rover.starting_coordinate[0], old_path[0], old_path[1]
+            y0, y1, y2 = self.Rover.starting_coordinate[1], old_path[self.NUM_OF_STEPS], old_path[self.NUM_OF_STEPS+1]
 
-        # Loop to calculate intermediate ode deltas
-        for i in range(1,self.NUM_OF_STEPS-1):
-            delta[i], delta[self.NUM_OF_STEPS+i] = self.Ode.ode_delta(old_path[i-1],old_path[i],old_path[i+1],old_path[self.NUM_OF_STEPS-1+i],old_path[self.NUM_OF_STEPS+i],old_path[self.NUM_OF_STEPS+1+i],self.STEP_SIZE)
+            # Calculate first set of ode deltas
+            delta[0], delta[self.NUM_OF_STEPS] = self.Ode.ode_delta(x0, x1, x2, y0, y1, y2, self.STEP_SIZE)
+
+            # Loop to calculate intermediate ode deltas
+            for i in range(1,self.NUM_OF_STEPS-1):
+                delta[i], delta[self.NUM_OF_STEPS+i] = self.Ode.ode_delta(old_path[i-1],old_path[i],old_path[i+1],old_path[self.NUM_OF_STEPS-1+i],old_path[self.NUM_OF_STEPS+i],old_path[self.NUM_OF_STEPS+1+i],self.STEP_SIZE)
 
 
-        # Define input to calculate delta at beginning of path
-        x0, x1, x2 = old_path[self.NUM_OF_STEPS-2], old_path[self.NUM_OF_STEPS-1], self.Rover.ending_coordinate[0]
-        y0, y1, y2 = old_path[2*self.NUM_OF_STEPS-2], old_path[2*self.NUM_OF_STEPS-1], self.Rover.ending_coordinate[1]
-        
-        # Calculate final ODE delta
-        delta[self.NUM_OF_STEPS-1], delta[2*self.NUM_OF_STEPS-1] = self.Ode.ode_delta(x0, x1, x2, y0, y1, y2, self.STEP_SIZE)
+            # Define input to calculate delta at beginning of path
+            x0, x1, x2 = old_path[self.NUM_OF_STEPS-2], old_path[self.NUM_OF_STEPS-1], self.Rover.ending_coordinate[0]
+            y0, y1, y2 = old_path[2*self.NUM_OF_STEPS-2], old_path[2*self.NUM_OF_STEPS-1], self.Rover.ending_coordinate[1]
+            
+            # Calculate final ODE delta
+            delta[self.NUM_OF_STEPS-1], delta[2*self.NUM_OF_STEPS-1] = self.Ode.ode_delta(x0, x1, x2, y0, y1, y2, self.STEP_SIZE)
 
-        # Compute jacobian
-        jacobian = self.Ode.jacobian(self.Rover.starting_coordinate, self.Rover.ending_coordinate, old_path, self.NUM_OF_STEPS, self.STEP_SIZE)
+            # Compute jacobian
+            jacobian = self.Ode.jacobian(self.Rover.starting_coordinate, self.Rover.ending_coordinate, old_path, self.NUM_OF_STEPS, self.STEP_SIZE)
 
-        # Get inverse of jacobian
-        jacobian_inverse = np.linalg.inv(jacobian)
+            # Get inverse of jacobian
+            jacobian_inverse = np.linalg.inv(jacobian)
 
-        # Create new path using Newton's Method
-        new_path = old_path - np.dot(jacobian_inverse, delta)
+            # Create new path using Newton's Method
+            new_path = old_path - np.dot(jacobian_inverse, delta)
 
-        # Update Path object
-        self.Path.update_path(new_path)
-
-        # Update error
-        self.error = self.Path.check_path_error()
+            # Update Path object
+            Path.update_path(new_path)
 
     def show_solution(self):
 
@@ -199,8 +197,10 @@ class PathPlanningODE():
 
             ax.plot(obstacle.coordinate[0], obstacle.coordinate[1], 'x')
 
-        # Plot solution
-        ax.plot(self.Path.path[0], self.Path.path[1])
+        for Path in self.Pathlist:
+            
+            # Plot solution
+            ax.plot(Path.path[0], Path.path[1])
 
         # Show plot
         plt.show(1)
@@ -224,22 +224,29 @@ class PathPlanningODE():
 
             ax.plot(obstacle.coordinate[0], obstacle.coordinate[1], 'x')
 
-        # Initialize solution line
-        line, = ax.plot([], [], lw=2)
+        # Initialize solution line list
+        linelist = []
+
+        for index in range(len(self.Pathlist)):
+            lobj = ax.plot([],[],lw=2)[0]
+            linelist.append(lobj)
 
         # initialization function: plot the background of each frame
         def init():
-            line.set_data([], [])
-            return line,
+            for index,line in enumerate(linelist):
+                line.set_data(self.Pathlist[index].path[0], self.Pathlist[index].path[1])
+            return linelist
 
         # animation function.  This is called sequentially
         def animate(i):
             self.update_path()
-            line.set_data(self.Path.path[0], self.Path.path[1])
-            return line,
+            for index,line in enumerate(linelist):
+                line.set_data(self.Pathlist[index].path[0], self.Pathlist[index].path[1])
+            return tuple(linelist)
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
-        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES, interval=50, blit=True)
+        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=NUM_OF_FRAMES,
+                                       interval=50, blit=True)
 
         if save:
             
@@ -272,7 +279,7 @@ class PathPlanningODE():
 
         # animation function.  This is called sequentially
         def animate(i):
-            rov.set_data(self.Path.path[0][i], self.Path.path[1][i])
+            rov.set_data(self.Pathlist[0].path[0][i], self.Pathlist[0].path[1][i])
             return rov,
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
@@ -340,20 +347,19 @@ class Path():
     def __init__(self,
                  Rover,
                  NUM_OF_STEPS = 10,
+                 x_exponent = 1,
+                 y_exponent = 1,
                  ):
 
         # Get rover coordinates
         self.startxcoord, self.startycoord = Rover.starting_coordinate
         self.endxcoord, self.endycoord = Rover.ending_coordinate
 
-        # Initialize guess path function (builds a straight line parametrized by t)
-        self.path_func = self.create_path_func()
-
         # Set time list with defined number of steps
         self.time_list = np.linspace(0, 1, NUM_OF_STEPS + 2)
 
-        # Initialize guess path with t ranging from 0 to 1
-        self.path = self.path_func(self.time_list)
+        # Initialize guess path function (builds a straight line parametrized by t)
+        self.set_path_func(x_exponent, y_exponent)
 
         # Initialize another variable to store old path for error tracking
         self.old_path = self.path
@@ -399,10 +405,12 @@ class Path():
 
             return None
 
-    def create_path_func(self, x_exponent = 1, y_exponent = 1):
+    def set_path_func(self, x_exponent = 1, y_exponent = 1):
 
-        return lambda t: (self.startxcoord + (self.endxcoord - self.startxcoord)*t**x_exponent,
+        self.path_func = lambda t: (self.startxcoord + (self.endxcoord - self.startxcoord)*t**x_exponent,
                           self.startycoord + (self.endycoord - self.startycoord)*t**y_exponent)
+
+        self.path = self.path_func(self.time_list)
                  
 ################################################################################
 ################################################################################
