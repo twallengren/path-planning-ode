@@ -30,10 +30,10 @@ __________________________________
         Example usage:
 
             To place one obstacle at (5, 5)
-            pp.create_obstacles( obstacle=[(5,5)] )
+            pp.create_obstacles( coordinates=[(5,5)] )
 
             To place two obstacles, one at (1,2) the other at (3,4)
-            pp.create_obstacles( obstacle=[(1,2), (3,4)] )
+            pp.create_obstacles( coordinates=[(1,2), (3,4)] )
 
             To place 5 obstacles randomly
             pp.create_obstacles(5)
