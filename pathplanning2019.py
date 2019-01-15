@@ -51,6 +51,11 @@ class PathPlanningODE():
             pp.create_obstacles(5)
 
     __________________________________
+    To clear all obstacles from the field:
+    
+    pp.clear_obstacles()
+
+    __________________________________
     To show current state of path planning problem:
     
     pp.show_solution()
