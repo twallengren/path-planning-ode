@@ -181,6 +181,12 @@ class PathPlanningODE():
             # Update Path object
             Path.update_path(new_path)
 
+    def reset_paths(self):
+
+        for Path in self.Pathlist:
+
+            Path.set_path_func(Path.x_exponent, Path.y_exponent)
+
     def show_solution(self):
 
         # Create figure
@@ -377,6 +383,10 @@ class Path():
 
         # Set NUM_OF_STEPS on class variabls
         self.NUM_OF_STEPS = NUM_OF_STEPS
+
+        # Store x_exponent and y_exponent on self
+        self.x_exponent = x_exponent
+        self.y_exponent = y_exponent
 
     def __repr__(self):
 
