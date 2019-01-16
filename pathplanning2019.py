@@ -95,12 +95,8 @@ class PathPlanningODE():
 
         # Create initial guess path based on rover start/end coordinates
         self.Pathlist = [Path(self.Rover, NUM_OF_STEPS),
-                         Path(self.Rover, NUM_OF_STEPS, 1, 2),
-                         Path(self.Rover, NUM_OF_STEPS, 2, 1),
-                         Path(self.Rover, NUM_OF_STEPS, 1, 4),
-                         Path(self.Rover, NUM_OF_STEPS, 4, 1),
-                         Path(self.Rover, NUM_OF_STEPS, 1, 6),
-                         Path(self.Rover, NUM_OF_STEPS, 6, 1),]
+                         Path(self.Rover, NUM_OF_STEPS, 1, 5),
+                         Path(self.Rover, NUM_OF_STEPS, 5, 1),]
 
         # Create ODE object to solve
         self.Ode = ODE()
