@@ -269,18 +269,26 @@ class PathPlanningODE():
 
             ax.plot(obstacle.coordinate[0], obstacle.coordinate[1], 'x')
 
-        # Initialize rover
-        rov, = ax.plot([], [], 'ro')
+        rovlist = []
+
+        for path in self.Pathlist:
+            
+            # Initialize rover
+            rov = ax.plot([], [], 'ro')[0]
+
+            rovlist.append(rov)
 
         # initialization function: plot the background of each frame
         def init():
-            rov.set_data([], [])
-            return rov,
+            for index,rov in enumerate(rovlist):
+                rov.set_data(self.Pathlist[index].path[0][0], self.Pathlist[index].path[1][0])
+            return rovlist
 
         # animation function.  This is called sequentially
         def animate(i):
-            rov.set_data(self.Pathlist[0].path[0][i], self.Pathlist[0].path[1][i])
-            return rov,
+            for index,rov in enumerate(rovlist):
+                rov.set_data(self.Pathlist[index].path[0][i], self.Pathlist[index].path[1][i])
+            return rovlist
 
         # call the animator.  blit=True means only re-draw the parts that have changed.
         anim = animation.FuncAnimation(fig, animate, init_func=init, frames=self.NUM_OF_STEPS, interval=100, blit=True)
