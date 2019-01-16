@@ -81,7 +81,7 @@ class PathPlanningODE():
     def __init__(self,
                  starting_coordinate = (-2,-2),
                  ending_coordinate = (12,12),
-                 NUM_OF_STEPS = 10,
+                 NUM_OF_STEPS = 15,
                  ):
 
         # Initialize obstacle list
@@ -95,8 +95,12 @@ class PathPlanningODE():
 
         # Create initial guess path based on rover start/end coordinates
         self.Pathlist = [Path(self.Rover, NUM_OF_STEPS),
-                         Path(self.Rover, NUM_OF_STEPS, 1, 5),
-                         Path(self.Rover, NUM_OF_STEPS, 5, 1)]
+                         Path(self.Rover, NUM_OF_STEPS, 1, 2),
+                         Path(self.Rover, NUM_OF_STEPS, 2, 1),
+                         Path(self.Rover, NUM_OF_STEPS, 1, 4),
+                         Path(self.Rover, NUM_OF_STEPS, 4, 1),
+                         Path(self.Rover, NUM_OF_STEPS, 1, 6),
+                         Path(self.Rover, NUM_OF_STEPS, 6, 1),]
 
         # Create ODE object to solve
         self.Ode = ODE()
