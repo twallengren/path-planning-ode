@@ -102,7 +102,7 @@ class PathPlanningODE():
         self.Ode = ODE()
 
         # Get step size (change in time for each point in parametrized path)
-        self.STEP_SIZE = 1/NUM_OF_STEPS
+        self.STEP_SIZE = 1.0/NUM_OF_STEPS
 
     def create_obstacles(self,
                          NUM_OF_OBSTACLES=10,
@@ -325,7 +325,7 @@ class Rover():
 
     def __repr__(self):
 
-        return str(f"Rover's current coordinate is {self.current_coordinate}")
+        return str(f,"Rover's current coordinate is {self.current_coordinate}")
 
 ################################################################################
 ################################################################################
@@ -606,7 +606,7 @@ class ODE():
 ##    pp = PathPlanningODE()
 ##
 ##    for i in range(10):
-##        pp.create_obstacle()
+##        pp.create_obstacles()
 ##
 ##    pp.animate_solver()
 
