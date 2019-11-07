@@ -601,12 +601,9 @@ class ODE():
 ################################################################################
 # Define script behavior
 
-##if __name__ == '__main__':
-##
-##    pp = PathPlanningODE()
-##
-##    for i in range(10):
-##        pp.create_obstacles()
-##
-##    pp.animate_solver()
+if __name__ == '__main__':
+
+    pp = PathPlanningODE()
+    pp.create_obstacles()
+    pp.animate_solver()
 
