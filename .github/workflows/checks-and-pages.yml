@@ -29,6 +29,10 @@ jobs:
       - run: uv sync --frozen --python 3.13 --extra notebook
       - run: uv run pytest
       - run: uv run ruff check src tests scripts examples
+      - name: Run terrain smoke experiment
+        run: uv run python examples/terrain_experiment.py
+      - name: Run terrain benchmark smoke profile
+        run: uv run run-terrain-benchmarks --profile smoke --no-figures --output-dir /tmp/terrain-smoke
       - name: Execute the case study notebook
         run: uv run jupyter nbconvert --to notebook --execute examples/case_study.ipynb --output-dir /tmp --ExecutePreprocessor.timeout=120
         env:

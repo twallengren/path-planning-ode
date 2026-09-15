@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#edf0e8" />
+    <meta
+      name="description"
+      content="Compare path planners across reproducible terrain fields, barriers, and reference grids."
+    />
+    <title>Terrain laboratory · Path planning</title>
+  </head>
+  <body>
+    <header class="terrain-header">
+      <a class="terrain-wordmark" href="./">PATH / PLANNING <span>terrain laboratory</span></a>
+      <nav aria-label="Main">
+        <a href="./">Gaussian explorer</a><a href="./derivation.html">Derivation</a
+        ><a href="#results">Results</a>
+      </nav>
+    </header>
+    <main>
+      <section class="terrain-intro">
+        <div>
+          <p class="kicker">COMPUTATIONAL CASE STUDY · 02</p>
+          <h1>Terrain, measured<br />route by route.</h1>
+        </div>
+        <p>
+          Build a reproducible terrain, compare local solvers with a grid reference, and inspect
+          what each route actually experiences. Distances are metres; travel costs are seconds.
+        </p>
+      </section>
+      <section class="lab-shell" aria-labelledby="lab-title">
+        <div class="lab-title">
+          <div>
+            <p class="kicker">LIVE LABORATORY</p>
+            <h2 id="lab-title">One field. Several answers.</h2>
+          </div>
+          <p id="runtime" role="status" aria-live="polite">
+            Precomputed validated preview · Python loads when you run
+          </p>
+        </div>
+        <div class="workspace">
+          <div class="views">
+            <div class="view-toolbar">
+              <div class="segmented" role="group" aria-label="Map layer">
+                <button class="active" data-layer="elevation">Elevation</button
+                ><button data-layer="cost">Travel cost</button
+                ><button data-layer="arrival">Arrival time</button>
+              </div>
+              <label class="toggle"><input id="show-3d" type="checkbox" /> 3D elevation</label>
+            </div>
+            <div class="map-wrap">
+              <canvas
+                id="terrain-map"
+                role="img"
+                aria-label="Top-down terrain map with route comparisons"
+              ></canvas>
+              <div id="map-readout">Elevation · metres</div>
+            </div>
+            <canvas
+              id="terrain-3d"
+              hidden
+              role="img"
+              aria-label="Synchronized perspective elevation view"
+            ></canvas>
+            <div id="legend" class="route-legend"></div>
+          </div>
+          <aside class="control-panel" aria-label="Terrain controls">
+            <label
+              >Terrain family<select id="family">
+                <option value="ridge_pass">Ridge and pass</option>
+                <option value="competing_corridors">Competing corridors</option>
+                <option value="dead_ends">Dead ends</option>
+                <option value="correlated_roughness">Correlated roughness</option>
+                <option value="mount_tamalpais">Mount Tamalpais · bundled field</option>
+              </select></label
+            >
+            <div class="control-grid">
+              <label>Seed<input id="seed" type="number" min="0" max="9999" value="0" /></label
+              ><label
+                >Contrast <output id="contrast-value">1.0×</output
+                ><input id="contrast" type="range" min="0" max="2" step="0.1" value="1"
+              /></label>
+            </div>
+            <p id="terrain-meta" class="terrain-meta"></p>
+            <label class="check"
+              ><input id="barriers" type="checkbox" checked /> Include hard barriers</label
+            >
+            <fieldset>
+              <legend>Local methods</legend>
+              <label class="check"
+                ><input data-method="slsqp" type="checkbox" checked /> Constrained SLSQP</label
+              >
+              <label class="check"
+                ><input data-method="euler_lagrange" type="checkbox" /> Euler–Lagrange</label
+              >
+            </fieldset>
+            <fieldset>
+              <legend>Routes to compare</legend>
+              <label class="check"
+                ><input data-init="straight" type="checkbox" checked /> Local · straight</label
+              ><label class="check"
+                ><input data-init="arc_left" type="checkbox" checked /> Local · left arc</label
+              ><label class="check"
+                ><input data-init="arc_right" type="checkbox" checked /> Local · right arc</label
+              ><label class="check"
+                ><input data-init="barrier" type="checkbox" /> Local · barrier only</label
+              ><label class="check"
+                ><input data-init="fast_marching" type="checkbox" /> Local · FMM warm start</label
+              ><label class="check"
+                ><input id="run-reference" type="checkbox" checked /> Fast marching reference</label
+              >
+            </fieldset>
+            <div class="control-grid">
+              <label
+                >Local points<select id="local-n">
+                  <option>32</option>
+                  <option>64</option>
+                  <option>128</option>
+                </select></label
+              ><label
+                >Reference grid<select id="reference-n">
+                  <option>129</option>
+                  <option>257</option>
+                </select></label
+              >
+            </div>
+            <label class="check subtle"
+              ><input id="include-arrival" type="checkbox" /> Keep full arrival-time layer (uses
+              more memory)</label
+            >
+            <div class="actions">
+              <button id="run" class="primary">Run comparison</button
+              ><button id="cancel" disabled>Cancel</button>
+            </div>
+            <div id="message" role="alert"></div>
+            <details>
+              <summary>Import & export</summary>
+              <div class="file-actions">
+                <button id="export">Export JSON v2</button><button id="import">Import JSON</button
+                ><input id="file" type="file" accept="application/json" hidden />
+              </div>
+              <p>Version 1 Gaussian scenes are accepted and adapted by the Python planner.</p>
+            </details>
+          </aside>
+        </div>
+      </section>
+      <section class="dashboard" aria-labelledby="comparison-title">
+        <div class="section-copy">
+          <p class="kicker">ROUTE COMPARISON</p>
+          <h2 id="comparison-title">What the solver said. What the route did.</h2>
+          <p>
+            Feasibility and termination are separate. Grid difference is signed: a negative value
+            means the evaluated route cost is below the finite-grid reference. It is not an
+            optimality gap.
+          </p>
+        </div>
+        <div id="cards" class="cards">
+          <p class="empty">Choose routes and run the comparison.</p>
+        </div>
+        <div class="profiles">
+          <article>
+            <h3>Elevation profile <span>m</span></h3>
+            <canvas id="elevation-profile"></canvas>
+          </article>
+          <article>
+            <h3>Cumulative travel cost <span>s</span></h3>
+            <canvas id="cost-profile"></canvas>
+          </article>
+        </div>
+      </section>
+      <section id="results" class="results-section">
+        <div class="section-copy">
+          <p class="kicker">RECORDED STUDY</p>
+          <h2>Browse the evidence.</h2>
+          <p>Published native runs appear here when the study artifact is bundled with the site.</p>
+        </div>
+        <div id="study-status">Loading recorded study…</div>
+        <nav id="study-artifacts" class="study-artifacts" aria-label="Study downloads"></nav>
+        <div id="aggregate"></div>
+        <div id="runs"></div>
+      </section>
+    </main>
+    <footer>
+      All terrain is generated locally or shipped with the package. No live elevation service is
+      used.
+    </footer>
+    <script type="module" src="/src/terrain.ts"></script>
+  </body>
+</html>

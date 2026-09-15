@@ -6,7 +6,11 @@ strength and width, and compare candidate routes through the same landscape.
 
 **[Explore the website](https://twallengren.github.io/path-planning-ode/)** ·
 **[Read the full derivation](https://twallengren.github.io/path-planning-ode/derivation.html)** ·
-**[Open the notebook](examples/case_study.ipynb)**
+**[Open the notebook](examples/case_study.ipynb)** ·
+**[Open the terrain laboratory](https://twallengren.github.io/path-planning-ode/terrain.html)**
+
+**[Terrain tutorial and reproducible study method](docs/terrain-study.md)** ·
+**[Run the short terrain example](examples/terrain_experiment.py)**
 
 The same Python solver runs locally and in the browser through Pyodide. The site
 is static: computation happens on the visitor's device, with no API keys or server.
@@ -173,5 +177,11 @@ route, and labels the cheapest candidate **lowest cost shown**, not a global opt
 - Rover playback uses constant geometric speed, not simulated robot dynamics.
 
 See [the mathematical conventions](docs/mathematics.md).
+
+The v2 terrain pipeline uses shared SI-unit source fields, positive
+log-slowness interpolation, GeoJSON impassable barriers, and an independent
+route evaluator. See the [terrain tutorial](docs/terrain-study.md) for the
+Python API, CLI protocol, browser demo, Mount Tamalpais provenance, and limits
+on interpreting numerical references.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and change guidelines.

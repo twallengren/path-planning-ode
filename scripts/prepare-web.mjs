@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdir, readFile, access, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, access, writeFile, rm, symlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 
 const python =
@@ -12,9 +13,12 @@ const python =
       ? '.venv/Scripts/python.exe'
       : 'python');
 execFileSync(python, ['scripts/build_assets.py'], { stdio: 'inherit' });
-const destination = resolve('web/public/runtime');
+const portableCache = resolve(tmpdir(), 'path-planning-ode-pyodide-314.0.7');
+const macCache = '/private/tmp/path-planning-ode-pyodide-314.0.7';
+const destination = existsSync(macCache) ? macCache : portableCache;
 await mkdir(destination, { recursive: true });
-await cp('node_modules/pyodide', destination, { recursive: true });
+if (!existsSync(`${destination}/pyodide.mjs`))
+  await cp('node_modules/pyodide', destination, { recursive: true });
 const lock = JSON.parse(await readFile(`${destination}/pyodide-lock.json`, 'utf8'));
 const packages = new Set();
 function collect(name) {
@@ -23,6 +27,8 @@ function collect(name) {
   for (const dependency of lock.packages[name].depends ?? []) collect(dependency);
 }
 collect('numpy');
+collect('scipy');
+collect('shapely');
 for (const name of packages) {
   const filename = lock.packages[name].file_name;
   const target = `${destination}/${filename}`;
@@ -44,4 +50,7 @@ for (const name of packages) {
   await writeFile(target, new Uint8Array(await response.arrayBuffer()));
   if (!(await verified())) throw new Error(`Checksum mismatch for ${filename}`);
 }
-console.log('Prepared Python package, deterministic examples, and local browser runtime.');
+const publicRuntime = resolve('web/public/runtime');
+await rm(publicRuntime, { recursive: true, force: true });
+await symlink(destination, publicRuntime, process.platform === 'win32' ? 'junction' : 'dir');
+console.log('Prepared Python package, deterministic examples, and checksummed browser runtime.');

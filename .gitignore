@@ -119,10 +119,14 @@ dmypy.json
 .idea/
 node_modules/
 web/dist/
-web/public/runtime/
+web/public/runtime
 web/public/python/
 web/public/presets.json
 web/public/preview.json
+web/public/python-manifest.json
+web/public/terrain/
+web/public/study/
 playwright-report/
 test-results/
+terrain-study-results/
 .ruff_cache/
