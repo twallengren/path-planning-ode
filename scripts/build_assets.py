@@ -106,7 +106,7 @@ if published_index.is_file():
         elif source.is_dir():
             copytree(source, study_dir / source.name, copy_function=clone_or_copy)
     report = root / "docs" / "study-report.md"
-    if report.is_file():
+    if report.is_file() and not (study_dir / report.name).is_file():
         clone_or_copy(report, study_dir / report.name)
         if report.name not in assets:
             assets.append(report.name)
