@@ -17,17 +17,17 @@ result = solve(scene)
 for name, state in result.final.items():
     print(
         f"{name:10} {state.status:16} residual={state.residual_norm:.3g} "
-        f"energy={state.energy:.2f} length={state.length:.2f}"
+        f"cost={state.cost:.2f} distance={state.length:.2f}"
     )
 
 if not args.no_plot:
     import matplotlib.pyplot as plt
 
     for name, state in result.final.items():
-        plt.plot(*state.path.T, label=f"{name}: {state.status}")
+        plt.plot(*state.path.T, label=f"{name}: cost {state.cost:.2f} ({state.status})")
     for obstacle in scene.obstacles:
         plt.scatter(obstacle.x, obstacle.y, marker="x", color="black")
     plt.axis("equal")
     plt.legend()
-    plt.title("Euler–Lagrange stationary paths · soft obstacle costs")
+    plt.title("Weighted distance · candidate routes through soft costs")
     plt.show()

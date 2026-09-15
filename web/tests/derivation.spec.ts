@@ -15,10 +15,10 @@ test('derivation typesets every equation without loading Python and works under 
   expect(equations).toBeGreaterThan(30);
   await expect(page.locator('[data-tex] .katex')).toHaveCount(equations);
   await expect(page.locator('.katex-error')).toHaveCount(0);
-  await expect(page.locator('.derivation-notice')).toContainText('does not switch the playground');
-  await page.getByRole('link', { name: '6. The two ODE systems', exact: true }).click();
-  await expect(page).toHaveURL(/derivation\.html#two-equations$/);
-  await expect(page.locator('#two-equations h2')).toBeInViewport();
+  await expect(page.locator('body')).not.toContainText('corrected');
+  await page.getByRole('link', { name: '6. The ODE we solve', exact: true }).click();
+  await expect(page).toHaveURL(/derivation\.html#ode$/);
+  await expect(page.locator('#ode h2')).toBeInViewport();
   expect(runtimeRequests).toEqual([]);
   expect(errors).toEqual([]);
   await page.screenshot({ path: 'test-results/derivation-desktop.png', fullPage: true });

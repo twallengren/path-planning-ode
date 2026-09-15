@@ -2,9 +2,9 @@ import type { Bounds, Point, Scene, State } from './types';
 
 export const colors = ['#17695e', '#bd592f', '#7566b0'];
 export const names: Record<string, string> = {
-  straight: 'Straight',
-  'bend-x': 'Bend x',
-  'bend-y': 'Bend y',
+  straight: 'Direct',
+  'bend-x': 'Right arc',
+  'bend-y': 'Left arc',
 };
 export function sceneBounds(scene: Scene): Bounds {
   const points = [scene.start, scene.end, ...scene.obstacles.map((o) => [o.x, o.y])];
@@ -214,7 +214,7 @@ export class Plot {
 export function chart(
   canvas: HTMLCanvasElement,
   histories: Record<string, State[]>,
-  metric: 'energy' | 'residual_norm',
+  metric: 'cost' | 'residual_norm',
   cursor: number,
 ) {
   const w = canvas.clientWidth || 300,

@@ -19,12 +19,18 @@ export type State = {
   iteration: number;
   residual_norm: number;
   energy: number;
+  cost: number;
   length: number;
   status: 'running' | 'converged' | 'stagnated' | 'singular' | 'nonfinite' | 'iteration_limit';
   damping: number;
 };
 export type Bounds = [number, number, number, number];
-export type Frame = { states: Record<string, State>; field?: number[]; bounds?: Bounds };
+export type Frame = {
+  states: Record<string, State>;
+  field?: number[];
+  bounds?: Bounds;
+  straight_cost?: number;
+};
 
 export function validateScene(value: unknown): Scene {
   if (!value || typeof value !== 'object') throw new Error('Expected a scene object.');

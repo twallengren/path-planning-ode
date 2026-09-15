@@ -42,6 +42,9 @@ test('browser worker matches native Python; editing, playback and exports work',
   );
   for (const [name, state] of Object.entries<any>(frame.states)) {
     expect(state.residual_norm).toBeCloseTo(native[name].residual_norm, 7);
+    expect(state.cost).toBeCloseTo(native[name].cost, 10);
+    expect(state.energy).toBeCloseTo(native[name].energy, 7);
+    expect(state.length).toBeCloseTo(native[name].length, 10);
     for (let i = 0; i < state.path.length; i++)
       for (let axis = 0; axis < 2; axis++)
         expect(state.path[i][axis]).toBeCloseTo(native[name].path[i][axis], 8);
@@ -146,4 +149,38 @@ test('narrow screen, touch dragging, keyboard controls, reduced motion', async (
   await page.locator('#step').click();
   await expect(page.locator('#timeline-value')).toHaveText('1 / 1');
   await page.screenshot({ path: 'test-results/mobile.png', fullPage: true });
+});
+
+test('a longer detour is cheaper; scene changes refresh the baseline cost', async ({ page }) => {
+  await ready(page);
+  await page.locator('.experiment-tabs [data-preset="central"]').click();
+  await expect(page.locator('#view-label')).toHaveText('Live Python solver');
+  await expect(page.locator('#cost-comparison')).toContainText('Direct route cost: 41.07');
+  await page.locator('#play').click();
+  await expect(page.locator('#metrics .converged')).toHaveCount(3);
+  await expect(page.locator('#cost-comparison')).toContainText('22.09');
+  await expect(page.locator('#cost-comparison')).toContainText('46.2% less');
+  await expect(page.locator('#metrics')).toContainText('total cost');
+  await expect(page.locator('#metrics')).not.toContainText('energy');
+  const detour = page.locator('#metrics .metric').nth(1);
+  await expect(detour).toContainText('21.6');
+  await page.getByText('Solver convergence', { exact: true }).click();
+  await expect(page.locator('#residual-chart')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page
+        .locator('#cost-chart')
+        .evaluate((node) =>
+          Math.abs((node as HTMLCanvasElement).width - node.clientWidth * devicePixelRatio),
+        ),
+    )
+    .toBeLessThanOrEqual(1);
+  await page.getByText('Solver settings', { exact: true }).click();
+  await expect(page.locator('#resolution')).toBeVisible();
+  await page.locator('#weight').fill('0');
+  await expect(page.locator('#cost-comparison')).toContainText('Direct route cost: 19.80');
+  await page.locator('#play').click();
+  await expect(page.locator('#metrics .converged')).toHaveCount(3);
+  await expect(page.locator('#cost-comparison')).toContainText('No cheaper detour shown');
 });

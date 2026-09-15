@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "path-planning-ode"
-version = "0.1.0"
-description = "An interactive exploration of Euler–Lagrange path planning"
+version = "0.2.0"
+description = "An interactive exploration of weighted-distance path planning"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.1,<3"]

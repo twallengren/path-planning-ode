@@ -22,18 +22,6 @@
   line-height: 1.7;
   max-width: 590px;
 }
-.derivation-notice {
-  border-left: 3px solid #bd592f;
-  background: #f1e9df;
-  padding: 24px 28px;
-  margin-bottom: 60px;
-  max-width: 950px;
-  font-size: 15px;
-  line-height: 1.8;
-}
-.derivation-notice p {
-  margin: 9px 0 0;
-}
 .derivation-layout {
   display: grid;
   grid-template-columns: 235px minmax(0, 1fr);
@@ -120,12 +108,6 @@
 .derivation-equation .katex-display {
   margin: 8px 0;
   font-size: 1em;
-}
-.derivation-equation.current-equation {
-  border-left: 3px solid #bd592f;
-}
-.derivation-equation.corrected-equation {
-  border-left: 3px solid #17695e;
 }
 .notation {
   margin: 25px 0;
@@ -240,10 +222,7 @@
   .derivation-heading {
     padding-top: 48px;
   }
-  .derivation-notice {
-    padding: 19px 20px;
-    margin-bottom: 32px;
-  }
+
   .derivation-layout {
     grid-template-columns: 1fr;
     gap: 20px;

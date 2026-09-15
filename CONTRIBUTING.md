@@ -5,7 +5,6 @@
 - `tests/` and `web/tests/`: numerical and browser regression tests.
 - `examples/`: CLI plotting example and executable notebook.
 - `scripts/`: asset preparation and the test server.
-- `legacy/`: historical source, excluded from modern checks.
 
 Run the README's checks before submitting changes. Commit both lockfiles when
 changing dependencies. Generated runtime files and build output are ignored.

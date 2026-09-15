@@ -9,6 +9,7 @@ $('app').innerHTML = content;
 const plot = new Plot($<HTMLCanvasElement>('landscape'));
 let scenes: Record<string, Scene>, scene: Scene;
 let histories: Record<string, State[]> = {};
+let straightCost: number | undefined;
 let cursor = 0,
   selected = 0,
   generation = 0;
@@ -65,14 +66,25 @@ function render() {
   timeline.max = String(maxCursor());
   timeline.value = String(cursor);
   $('timeline-value').textContent = `${cursor} / ${maxCursor()}`;
+  const best = Object.entries(plot.states)
+    .filter(([, state]) => Number.isFinite(state.cost))
+    .sort((a, b) => a[1].cost - b[1].cost)[0];
+  $('cost-comparison').textContent =
+    straightCost === undefined
+      ? 'Computing route costs…'
+      : !best
+        ? `Direct route cost: ${straightCost.toFixed(2)}.`
+        : `Direct route cost: ${straightCost.toFixed(2)}. Lowest cost shown: ${names[best[0]]}, ${best[1].cost.toFixed(2)}.` +
+          (straightCost > 0 && best[1].cost < straightCost * (1 - 1e-6)
+            ? ` That’s ${(100 * (1 - best[1].cost / straightCost)).toFixed(1)}% less.`
+            : ' No cheaper detour shown.');
   $('metrics').innerHTML = Object.entries(plot.states)
     .map(([name, state]) => {
       const index = ['straight', 'bend-x', 'bend-y'].indexOf(name);
-      return `<div class="metric"><h4 style="color:${colors[index]}">${names[name]} <span class="status ${state.status}">${state.status.replace('_', ' ')}</span></h4><p>${state.energy.toFixed(1)} <span>energy</span> &nbsp; ${state.length.toFixed(1)} <span>length</span></p><small>RMS ${state.residual_norm.toExponential(1)} · α ${state.damping.toPrecision(2)}</small></div>`;
+      return `<div class="metric"><h4 style="color:${colors[index]}">${names[name]} <span class="status ${state.status}">${state.status.replace('_', ' ')}</span></h4><p>${state.cost.toFixed(2)} <span>total cost</span> &nbsp; ${state.length.toFixed(1)} <span>distance</span></p><details><summary>Numerical details</summary><small>RMS ${state.residual_norm.toExponential(1)} · step fraction ${state.damping.toPrecision(2)}</small></details></div>`;
     })
     .join('');
-  chart($('residual-chart'), histories, 'residual_norm', cursor);
-  chart($('energy-chart'), histories, 'energy', cursor);
+  renderCharts();
   const outOfView = Object.values(plot.states).some((state) =>
     state.path.some(
       ([x, y]) =>
@@ -84,6 +96,12 @@ function render() {
     : 'Drag points to reshape the scene';
   toggleControls();
 }
+function renderCharts() {
+  chart($('residual-chart'), histories, 'residual_norm', cursor);
+  chart($('cost-chart'), histories, 'cost', cursor);
+}
+const chartResize = new ResizeObserver(renderCharts);
+for (const id of ['cost-chart', 'residual-chart']) chartResize.observe($(id));
 function populateControls() {
   for (const endpoint of ['start', 'end'] as const)
     for (const [index, axis] of ['x', 'y'].entries()) {
@@ -119,13 +137,14 @@ function initialPaths() {
   // Only an initial-guess display; the Python worker supplies all computed values.
   histories = Object.fromEntries(
     scene.guesses.map((guess) => {
-      const powers = guess === 'bend-x' ? [5, 1] : guess === 'bend-y' ? [1, 5] : [1, 1];
+      const side = guess === 'bend-x' ? -1 : guess === 'bend-y' ? 1 : 0;
+      const delta = scene.end.map((v, axis) => v - scene.start[axis]);
+      const normal = [-delta[1], delta[0]];
       const path = Array.from({ length: scene.options.interior_points + 2 }, (_, i) => {
         const t = i / (scene.options.interior_points + 1);
-        return scene.start.map((v, axis) => v + (scene.end[axis] - v) * t ** powers[axis]) as [
-          number,
-          number,
-        ];
+        return scene.start.map(
+          (v, axis) => v + delta[axis] * t + side * 0.3 * Math.sin(Math.PI * t) * normal[axis],
+        ) as [number, number];
       });
       return [
         guess,
@@ -135,6 +154,7 @@ function initialPaths() {
             iteration: 0,
             residual_norm: 0,
             energy: 0,
+            cost: 0,
             length: 0,
             status: 'running',
             damping: 0,
@@ -150,6 +170,7 @@ async function resetScene() {
   stopRover();
   cursor = 0;
   preview = false;
+  straightCost = undefined;
   plot.bounds = sceneBounds(scene);
   plot.field = [];
   initialPaths();
@@ -167,6 +188,7 @@ async function resetScene() {
     histories = Object.fromEntries(
       Object.entries(frame.states).map(([name, state]) => [name, [state]]),
     );
+    straightCost = frame.straight_cost;
     plot.setField(frame.field!);
     pending = false;
     $('view-label').textContent = 'Live Python solver';
@@ -236,19 +258,19 @@ function edit(change: (draft: Scene) => void) {
 function markCustom() {
   document.querySelectorAll('[data-preset]').forEach((el) => el.classList.remove('active'));
   $('experiment-note').textContent =
-    'Your custom scene. Compare initial guesses, or change the solver mode and run again.';
+    'Your landscape. Change a hill, run the routes, and compare their total costs.';
 }
 const notes: Record<string, string> = {
   empty:
     'With uniform cost, each initial guess should recover the straight line in one Newton step.',
   central:
-    'A symmetric scene can preserve a straight-through stationary path. Compare it with the two bent guesses, then move the obstacle.',
+    'Is the detour worth it? Run the routes, then change the hill’s strength and width. Compare total cost, not just distance.',
   asymmetric:
-    'Three initial guesses explore the same asymmetric landscape. Do they reach the same answer?',
+    'Try routes on either side of the hills. Which one is cheapest, and is it also the shortest?',
   passage:
-    'The gap is a region of lower cost, not a hard corridor. Horizontal endpoints also reveal how the guesses change parameterization.',
+    'The gap offers cheaper ground between hills. Compare going through with going around; a solver may also get stuck.',
   challenge:
-    'Strong, narrow bumps create a difficult nonlinear problem. Reset and compare damped with undamped Newton.',
+    'Crossing these strong hills is expensive. Do the arc-shaped starting routes find worthwhile detours? Check the costs and solver status.',
 };
 function selectPreset(key: string) {
   if (!scenes) return;
@@ -556,6 +578,7 @@ async function start() {
       if (response.ok) {
         const example = await response.json();
         histories = example.histories;
+        straightCost = example.straight_cost;
         plot.setField(example.field);
         preview = true;
         cursor = maxCursor();

@@ -33,28 +33,16 @@
           read this page.
         </p>
       </div>
-      <aside class="derivation-notice" aria-label="Which formulation is implemented">
-        <strong>Which equations does the playground solve today?</strong>
-        <p>
-          It still uses the original energy: <em>cost × squared speed</em>. The intended
-          path-planning objective is <em>cost × distance</em>. Those are different problems. This
-          page derives both and explains the correction; it does not switch the playground to the
-          corrected formulation.
-        </p>
-        <p>
-          The numerical implementation has been modernized, but the original continuous equations
-          are preserved.
-        </p>
-      </aside>
+
       <div class="derivation-layout">
         <nav class="contents" aria-label="On this page">
           <p class="eyebrow">ON THIS PAGE</p>
           <a href="#problem">1. The problem & notation</a>
           <a href="#length">2. Cost × distance</a>
           <a href="#direct">3. Deriving from length</a>
-          <a href="#squaring">4. When squaring works</a>
+          <a href="#squaring">4. Choosing a parameter</a>
           <a href="#energy">5. Deriving from energy</a>
-          <a href="#two-equations">6. The two ODE systems</a>
+          <a href="#ode">6. The ODE we solve</a>
           <a href="#field">7. Differentiating the field</a>
           <a href="#boundary">8. A boundary-value problem</a>
           <a href="#differences">9. From curves to points</a>
@@ -127,7 +115,7 @@
           </section>
 
           <section id="length">
-            <p class="eyebrow">02 / THE INTENDED OBJECTIVE</p>
+            <p class="eyebrow">02 / COST TIMES DISTANCE</p>
             <h2>Pay for the distance you travel.</h2>
             <p>
               A small displacement along the curve has length <em>ds = ‖q′‖ dt</em>. Multiply that
@@ -140,9 +128,7 @@
               J = the integral of cost times distance along the path.
             </div>
             <p>
-              <strong
-                >This is the objective we actually want for weighted-distance path planning.</strong
-              >
+              <strong>This is weighted distance: the quantity the playground compares.</strong>
               If a region has cost 9, each unit of distance through it costs nine times as much as a
               unit through a region with cost 1.
             </p>
@@ -161,7 +147,7 @@
 
           <section id="direct">
             <p class="eyebrow">03 / START WITH WEIGHTED LENGTH</p>
-            <h2>Why the square root is awkward.</h2>
+            <h2>The shape matters, not the schedule.</h2>
             <p>
               The integrand is called the <strong>Lagrangian</strong>. Write v for q′ and u for its
               magnitude, so L = c(q)u. The Euler–Lagrange equation is the condition that a small
@@ -225,234 +211,160 @@
           </section>
 
           <section id="squaring">
-            <p class="eyebrow">04 / THE SQUARING QUESTION</p>
-            <h2>A valid shortcut needs one extra argument.</h2>
+            <p class="eyebrow">04 / CHOOSE A PARAMETERIZATION</p>
+            <h2>Use weighted distance as the clock.</h2>
             <p>
-              Because J is nonnegative, J and J² have the same minimizers. But squaring the entire
-              integral is not the same operation as squaring the integrand:
+              The length equation leaves the traversal schedule free. We select a schedule with
+              constant weighted speed. This fixes the extra freedom without changing which geometric
+              routes minimize our objective.
             </p>
+            <p>Define an auxiliary energy by squaring the local weighted speed:</p>
+            <div class="derivation-equation" data-tex="E[q]=\int_0^1 c(q)^2\,\lVert q'\rVert^2\,dt">
+              E = the integral of cost squared times speed squared.
+            </div>
+            <p>Cauchy–Schwarz on an interval of length one gives:</p>
             <div
               class="derivation-equation"
-              data-tex="\left(\int_0^1 f(t)\,dt\right)^2\ne\int_0^1 f(t)^2\,dt\quad\text{in general}"
+              data-tex="J[q]^2=\left(\int_0^1 c(q)\lVert q'\rVert\cdot1\,dt\right)^2\le E[q]"
             >
-              The square of an integral does not generally equal the integral of the square.
+              Weighted distance squared is at most the energy.
             </div>
             <p>
-              For example, take f = 0 on the first half of the interval and f = 2 on the second
-              half. The square of its integral is 1, while the integral of its square is 2.
-            </p>
-            <p>
-              Here there is a geometric way to justify a squared integrand. Define the
-              <strong>corrected energy</strong> by squaring the whole local expression, including
-              the cost:
-            </p>
-            <div
-              class="derivation-equation"
-              data-tex="E_{\mathrm{correct}}[q]=\int_0^1 c(q)^2\,\lVert q'\rVert^2\,dt"
-            >
-              Corrected energy = the integral of cost squared times speed squared.
-            </div>
-            <p>The Cauchy–Schwarz inequality on an interval of length one says:</p>
-            <div
-              class="derivation-equation"
-              data-tex="J[q]^2=\left(\int_0^1 c(q)\lVert q'\rVert\cdot1\,dt\right)^2\le E_{\mathrm{correct}}[q]"
-            >
-              Weighted distance squared is at most the corrected energy.
-            </div>
-            <p>
-              Equality holds exactly when <strong>weighted speed c(q)‖q′‖ is constant</strong>. This
-              means moving more slowly, in parameter t, through more expensive regions. Ordinary
-              speed need not be constant.
-            </p>
-            <p>
-              For any regular geometric route, we can choose that traversal schedule without
-              changing the route. An explicit new parameter is the fraction of total weighted
+              Equality holds when <strong>weighted speed c(q)‖q′‖ is constant</strong>. For any
+              regular geometric route, choose the new parameter to be the fraction of weighted
               distance already traveled:
             </p>
             <div
               class="derivation-equation"
               data-tex="\tau(t)=\frac{1}{J[q]}\int_0^t c(q(r))\,\lVert q'(r)\rVert\,dr"
             >
-              The new parameter is accumulated weighted distance divided by total weighted distance.
+              New parameter = accumulated weighted distance divided by total weighted distance.
+            </div>
+            <div
+              class="derivation-equation"
+              data-tex="c(q)\left\lVert\frac{dq}{d\tau}\right\rVert=J[q]"
+            >
+              The weighted speed in this parameter is the total weighted distance, a constant.
             </div>
             <p>
-              In this parameter, c‖dq/dτ‖ = J everywhere. So the lowest corrected energy available
-              for any fixed route is exactly its weighted distance squared.
+              Every route can therefore attain energy equal to its weighted distance squared.
               <strong
-                >Minimizing corrected energy over curves and their parameterizations therefore gives
-                the same minimizing geometric routes as minimizing J.</strong
+                >Minimizing energy over curves and their parameterizations gives the same minimizing
+                geometric routes as minimizing weighted distance.</strong
               >
             </p>
             <p>
-              This is the usual length–energy relationship for the metric c²I. It is a continuous
-              result; a finite grid approximates it. It is not a claim that the two objectives agree
-              for an arbitrary fixed parameterization.
+              This is the length–energy relationship for the metric c²I. It relies on the positive
+              field and freedom to reparameterize, not an assumption that integrating a square
+              always preserves minimizers. The two quantities need not agree for an arbitrary fixed
+              schedule. The finite grid only approximates this continuous relationship.
+            </p>
+            <p>
+              From here onward, t denotes the parameter selected by the energy equations, not
+              physical time. The playground still reports weighted distance, not energy, as the
+              route’s total cost.
             </p>
           </section>
 
           <section id="energy">
-            <p class="eyebrow">05 / DERIVE THE ENERGY EQUATIONS</p>
-            <h2>One derivation covers both versions.</h2>
-            <p>Introduce a positive coefficient A(q), and temporarily leave its meaning open:</p>
-            <div
-              class="derivation-equation"
-              data-tex="E_A[q]=\int_0^1 A(q)\,\lVert q'\rVert^2\,dt,\qquad L=A(x,y)(x'^2+y'^2)"
-            >
-              Use a general coefficient A multiplying squared speed.
+            <p class="eyebrow">05 / THE EULER–LAGRANGE DERIVATION</p>
+            <h2>Vary the curve, holding its ends fixed.</h2>
+            <p>Use the energy Lagrangian:</p>
+            <div class="derivation-equation" data-tex="L(q,v)=c(q)^2\lVert v\rVert^2,\qquad v=q'">
+              L = cost squared times squared velocity magnitude.
             </div>
             <p>
-              At the end we will choose A = c for the current implementation, or A = c² for the
-              corrected objective.
-            </p>
-            <h3>First: why Euler–Lagrange applies.</h3>
-            <p>
-              Perturb the curve by a small amount εη(t), keeping both endpoints fixed, so η(0) =
-              η(1) = 0. Differentiate the energy with respect to ε at zero:
+              Perturb the curve by εη(t), where η is zero at both endpoints. Differentiating at ε =
+              0 measures the first-order change in energy:
             </p>
             <div
               class="derivation-equation"
-              data-tex="\delta E_A=\int_0^1\left[\lVert q'\rVert^2\nabla A\cdot\eta+2Aq'\cdot\eta'\right]dt"
+              data-tex="\delta E=\int_0^1\left[2c\lVert q'\rVert^2\nabla c\cdot\eta+2c^2q'\cdot\eta'\right]dt"
             >
-              The first variation has a change-in-position term and a change-in-velocity term.
+              The first variation includes changes to position and velocity.
             </div>
             <p>
-              Integrate the second term by parts. Its endpoint contribution vanishes because η is
-              zero at both ends:
+              Integrate the second term by parts. The boundary term vanishes because the endpoint
+              perturbations are zero:
             </p>
             <div
               class="derivation-equation"
-              data-tex="\delta E_A=\int_0^1\left[\lVert q'\rVert^2\nabla A-\frac{d}{dt}(2Aq')\right]\cdot\eta\,dt"
+              data-tex="\delta E=\int_0^1\left[2c\lVert q'\rVert^2\nabla c-\frac{d}{dt}(2c^2q')\right]\cdot\eta\,dt"
             >
-              After integration by parts, all the dependence on the perturbation is through η.
+              Integration by parts puts all dependence on the perturbation into η.
             </div>
             <p>
-              For this to vanish for every interior perturbation η, the vector in brackets must be
-              zero. That is the Euler–Lagrange condition. It is necessary for a smooth minimizer,
-              but it is also satisfied by other stationary curves.
-            </p>
-            <h3>Next: expand the x equation.</h3>
-            <div
-              class="derivation-equation"
-              data-tex="\frac{\partial L}{\partial x}=A_x(x'^2+y'^2),\qquad\frac{\partial L}{\partial x'}=2Ax'"
-            >
-              The x derivatives of the Lagrangian are Aₓ times squared speed, and 2Ax′.
-            </div>
-            <p>
-              A changes as the curve moves, so the chain rule gives dA/dt = Aₓx′ + Aᵧy′. Apply the
-              product rule to 2Ax′:
-            </p>
-            <div class="derivation-equation" data-tex="\frac{d}{dt}(2Ax')=2Ax''+2(A_xx'+A_yy')x'">
-              The total derivative is 2Ax″ + 2(Aₓx′ + Aᵧy′)x′.
-            </div>
-            <p>Subtract ∂L/∂x and set the result to zero:</p>
-            <div class="derivation-equation" data-tex="2Ax''+2A_xx'^2+2A_yx'y'-A_x(x'^2+y'^2)=0">
-              Collect the terms in the x Euler–Lagrange equation.
-            </div>
-            <p>Collect like terms and solve for x″:</p>
-            <div
-              class="derivation-equation"
-              data-tex="\boxed{x''=\frac{A_x(y'^2-x'^2)-2A_yx'y'}{2A}}"
-            >
-              x″ = [Aₓ(y′² − x′²) − 2Aᵧx′y′] / (2A).
-            </div>
-            <h3>Repeat for y.</h3>
-            <div class="derivation-equation" data-tex="2Ay''+2(A_xx'+A_yy')y'-A_y(x'^2+y'^2)=0">
-              The y equation follows from ∂L/∂y′ = 2Ay′ and ∂L/∂y = Aᵧ(x′² + y′²).
-            </div>
-            <div
-              class="derivation-equation"
-              data-tex="\boxed{y''=\frac{A_y(x'^2-y'^2)-2A_xx'y'}{2A}}"
-            >
-              y″ = [Aᵧ(x′² − y′²) − 2Aₓx′y′] / (2A).
-            </div>
-            <p>
-              These are coupled, second-order ordinary differential equations: each coordinate's
-              acceleration depends on both coordinates and both velocities. In compact vector form:
+              For every interior perturbation to give zero first-order change, the bracket must
+              vanish. This is the Euler–Lagrange condition:
             </p>
             <div
               class="derivation-equation"
-              data-tex="\boxed{q''=F_A(q,v)=\frac{\lVert v\rVert^2\nabla A-2v(\nabla A\cdot v)}{2A}}"
+              data-tex="\frac{d}{dt}(2c^2q')-2c\lVert q'\rVert^2\nabla c=0"
             >
-              The vector ODE combines the x and y equations.
+              The derivative of momentum equals the spatial derivative of the Lagrangian.
+            </div>
+            <h3>Expand the x equation.</h3>
+            <div
+              class="derivation-equation"
+              data-tex="\frac{\partial L}{\partial x}=2cc_x(x'^2+y'^2),\qquad\frac{\partial L}{\partial x'}=2c^2x'"
+            >
+              The x derivatives are 2ccₓ times squared speed, and 2c²x′.
+            </div>
+            <p>The chain rule gives dc/dt = cₓx′ + cᵧy′. Apply the product rule:</p>
+            <div
+              class="derivation-equation"
+              data-tex="\frac{d}{dt}(2c^2x')=2c^2x''+4c(c_xx'+c_yy')x'"
+            >
+              The derivative includes the changing field and the changing velocity.
+            </div>
+            <p>Subtract ∂L/∂x and divide by 2c, which is positive:</p>
+            <div class="derivation-equation" data-tex="cx''+2(c_xx'+c_yy')x'-c_x(x'^2+y'^2)=0">
+              Collect terms in the x Euler–Lagrange equation.
+            </div>
+            <p>Rearrange; repeat the same steps for y:</p>
+            <div class="derivation-equation" data-tex="cx''=c_x(y'^2-x'^2)-2c_yx'y'">
+              Solve for the x acceleration.
+            </div>
+            <div class="derivation-equation" data-tex="cy''=c_y(x'^2-y'^2)-2c_xx'y'">
+              Solve for the y acceleration.
             </div>
             <p>
-              An energy-stationary curve also has A‖q′‖² constant along it. Substituting the ODE
-              into its derivative makes the terms cancel. Thus the energy equations select a
-              traversal schedule as well as a shape.
+              This is a necessary stationarity condition for a smooth minimizer. Other stationary
+              curves can satisfy it too. Solving these equations generates candidates; comparing
+              their costs remains a separate step.
             </p>
           </section>
 
-          <section id="two-equations">
-            <p class="eyebrow">06 / SUBSTITUTE THE COST</p>
-            <h2>The missing square changes the ODE.</h2>
-            <h3>Current implementation: A = c.</h3>
+          <section id="ode">
+            <p class="eyebrow">06 / THE EQUATIONS WE SOLVE</p>
+            <h2>Two coordinates, one coupled system.</h2>
+            <div
+              class="derivation-equation"
+              data-tex="\boxed{\begin{aligned}x''&amp;=\frac{c_x(y'^2-x'^2)-2c_yx'y'}{c}\\[6pt]y''&amp;=\frac{c_y(x'^2-y'^2)-2c_xx'y'}{c}\end{aligned}}"
+            >
+              x″ = [cₓ(y′² − x′²) − 2cᵧx′y′] / c. y″ = [cᵧ(x′² − y′²) − 2cₓx′y′] / c.
+            </div>
             <p>
-              Substitution immediately gives the original equations, which the playground still
-              solves:
+              Both equations depend on position and both velocity components. All field values and
+              derivatives are evaluated at the point on the path. In vector notation:
             </p>
             <div
-              class="derivation-equation current-equation"
-              data-tex="\begin{aligned}x''&amp;=\frac{c_x(y'^2-x'^2)-2c_yx'y'}{2c}\\[6pt]y''&amp;=\frac{c_y(x'^2-y'^2)-2c_xx'y'}{2c}\end{aligned}"
+              class="derivation-equation"
+              data-tex="\boxed{q''=F(q,v)=\frac{\lVert v\rVert^2\nabla c-2v(\nabla c\cdot v)}{c}}"
             >
-              The current x and y ODEs have denominator 2c.
+              The acceleration F combines the cost gradient and its projection along velocity.
             </div>
-            <p>
-              The geometric length associated with this energy uses √c as its distance weight. The
-              energy chooses constant √c‖q′‖. With cost 9, this amounts to a geometric distance
-              weight of 3.
-            </p>
-            <h3>Corrected weighted-distance formulation: A = c².</h3>
-            <p>
-              Now Aₓ = 2ccₓ and Aᵧ = 2ccᵧ. Substitute those into the general equations and cancel
-              the common factors:
-            </p>
+            <p>As a check, differentiate squared weighted speed along a solution:</p>
             <div
-              class="derivation-equation corrected-equation"
-              data-tex="\begin{aligned}x''&amp;=\frac{c_x(y'^2-x'^2)-2c_yx'y'}{c}\\[6pt]y''&amp;=\frac{c_y(x'^2-y'^2)-2c_xx'y'}{c}\end{aligned}"
+              class="derivation-equation"
+              data-tex="\frac{d}{dt}(c^2\lVert v\rVert^2)=2c(\nabla c\cdot v)\lVert v\rVert^2+2c^2v\cdot F=0"
             >
-              The corrected x and y ODEs have denominator c, rather than 2c.
+              Substituting F makes the terms cancel: weighted speed is constant.
             </div>
             <p>
-              The right-hand side is twice the current one when evaluated at the same position and
-              velocity. This formulation selects constant c‖q′‖ and has the intended minimizing
-              geometric routes.
-            </p>
-            <div class="table-scroll">
-              <table>
-                <caption>
-                  Keep these three functionals distinct
-                </caption>
-                <thead>
-                  <tr>
-                    <th>Formulation</th>
-                    <th>Local integrand</th>
-                    <th>Geometric meaning</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Intended weighted distance</td>
-                    <td>c × speed</td>
-                    <td>Accumulates c per unit distance; any traversal schedule.</td>
-                  </tr>
-                  <tr>
-                    <td>Current energy</td>
-                    <td>c × speed²</td>
-                    <td>Corresponds to distance weighted by √c, with a selected schedule.</td>
-                  </tr>
-                  <tr>
-                    <td>Corrected energy</td>
-                    <td>c² × speed²</td>
-                    <td>Corresponds to distance weighted by c, with a selected schedule.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p>
-              Here c² means the square of the <strong>entire field</strong>, including its baseline
-              and overlapping bumps. Squaring individual obstacle weights would not make this
-              correction. Switching the project would also require updating the Jacobian, energy
-              diagnostic, tests, and presentation.
+              Thus the energy equations supply exactly the schedule used in the length–energy
+              argument. They are also consistent with the direct weighted-length equation from
+              section 3. They do not model a robot’s physical acceleration.
             </p>
           </section>
 
@@ -489,16 +401,10 @@
               each bump.
             </div>
             <p>
-              The implementation evaluates these formulas directly with NumPy. It does not invoke a
-              symbolic algebra engine while the user drags an obstacle. For the corrected energy,
-              the corresponding coefficient derivatives would be:
+              The implementation evaluates these formulas directly with NumPy. The simplified ODE
+              needs the field and its derivatives; it does not run symbolic algebra during an
+              interaction.
             </p>
-            <div
-              class="derivation-equation"
-              data-tex="\nabla(c^2)=2c\nabla c,\qquad\nabla^2(c^2)=2\nabla c\,\nabla c^{\mathsf T}+2cH"
-            >
-              The gradient and Hessian of the squared field follow from the product rule.
-            </div>
           </section>
 
           <section id="boundary">
@@ -518,20 +424,20 @@
               equations at each interior point, also 2N equations.
             </p>
             <p>
-              The three initial guesses use the same parameter samples but different polynomial
-              shapes:
+              The three starting routes use the same parameter samples, with a straight line or a
+              sine-shaped arc on either side:
             </p>
             <div
               class="derivation-equation"
-              data-tex="\begin{aligned}x(t)&amp;=a_x+(b_x-a_x)t^p\\y(t)&amp;=a_y+(b_y-a_y)t^r\end{aligned}"
+              data-tex="d=b-a,\quad n=(-d_y,d_x),\quad q_\beta(t)=a+td+0.3\beta\sin(\pi t)n"
             >
-              Interpolate the x and y endpoint coordinates using powers of t.
+              Interpolate the endpoints and add a perpendicular sine-shaped displacement.
             </div>
             <p>
-              <strong>Straight:</strong> p = r = 1. <strong>Bend x:</strong> p = 5, r = 1.
-              <strong>Bend y:</strong> p = 1, r = 5. These can explore different stationary
-              solutions. If an endpoint coordinate does not change, some guesses differ only in
-              traversal schedule.
+              <strong>Direct:</strong> β = 0. <strong>Right arc:</strong> β = −1.
+              <strong>Left arc:</strong> β = 1, looking from start toward destination. At the
+              midpoint the arcs deviate by 30% of the endpoint distance. Unlike the endpoints, their
+              intermediate points are free to move during solving.
             </p>
             <div class="derivation-note">
               <strong>Two different meanings of “step.”</strong>
@@ -580,9 +486,8 @@
             </div>
             <p>
               Both estimates have error of order h² for a sufficiently smooth curve. The second
-              derivative needs <strong>h² in the denominator</strong>. The old implementation used h
-              in its residual while its Jacobian used h²; the modernization corrected this and made
-              h agree with the actual point spacing.
+              derivative needs <strong>h² in the denominator</strong>. The same spacing is used in
+              both the residual and its Jacobian.
             </p>
             <p>
               At each interior point, subtract the acceleration predicted by the ODE from the
@@ -669,36 +574,29 @@
             <details class="algebra-details">
               <summary>The analytic formulas for F<sub>q</sub> and F<sub>v</sub></summary>
               <p>
-                For the general energy coefficient A, write g = ∇A and H<sub>A</sub> = ∇²A.
-                Differentiating F by the product and quotient rules gives:
+                Write g = ∇c and H = ∇²c. Differentiating F by the product and quotient rules gives:
               </p>
               <div
                 class="derivation-equation"
-                data-tex="F_q=\frac{\lVert v\rVert^2H_A-2v(H_Av)^{\mathsf T}}{2A}-\frac{Fg^{\mathsf T}}{A}"
+                data-tex="F_q=\frac{\lVert v\rVert^2H-2v(Hv)^{\mathsf T}}{c}-\frac{Fg^{\mathsf T}}{c}"
               >
-                The position derivative contains the Hessian of A and a quotient-rule correction.
+                The position derivative contains the Hessian of c and a quotient-rule correction.
               </div>
               <div
                 class="derivation-equation"
-                data-tex="F_v=\frac{gv^{\mathsf T}-vg^{\mathsf T}-(g\cdot v)I}{A}"
+                data-tex="F_v=\frac{2\left(gv^{\mathsf T}-vg^{\mathsf T}-(g\cdot v)I\right)}{c}"
               >
                 The velocity derivative contains two outer products and a scalar multiple of the
                 identity.
               </div>
               <p>
                 A product such as vgᵀ is an outer product: its entry in row j and column k is vⱼgₖ.
-                In the current code, A = c, so g and H<sub>A</sub> are exactly the Gaussian-field
-                gradient and Hessian from section 7.
+                Here g and H are the Gaussian-field gradient and Hessian from section 7.
               </p>
               <p>
-                The position derivative's final term comes from differentiating 1/A. In the velocity
+                The position derivative's final term comes from differentiating 1/c. In the velocity
                 derivative, differentiate ‖v‖² to get 2v, and differentiate v(g · v) using the
                 product rule.
-              </p>
-              <p>
-                For the corrected coefficient A = c², these derivatives simplify to twice the
-                current F<sub>q</sub> and F<sub>v</sub>. The finite-difference terms I/h² and −2I/h²
-                do not double.
               </p>
             </details>
           </section>
@@ -825,58 +723,74 @@
           </section>
 
           <section id="interpretation">
-            <p class="eyebrow">14 / WHAT THE PLOTS MEAN</p>
-            <h2>Small residual does not mean “best route.”</h2>
+            <p class="eyebrow">14 / READ THE RESULT</p>
+            <h2>Compare costs, then check the evidence.</h2>
             <p>
-              The solver finds a root of the discretized Euler–Lagrange equations. It does not
-              directly minimize a discrete objective, and it does not prove that the root is a
-              minimum. A symmetric path through a high-cost region can remain stationary. Different
-              initial guesses can lead to different roots.
-            </p>
-            <p>
-              The displayed <strong>energy</strong> is a separate midpoint-quadrature estimate. Let
-              mᵢ be the midpoint of a segment and dᵢ its displacement:
+              The playground displays the cost of the actual drawn polyline, integrating along each
+              segment rather than evaluating the field only at its vertices:
             </p>
             <div
               class="derivation-equation"
-              data-tex="E_{\mathrm{display}}=\sum_{i=0}^{N}c(m_i)\frac{\lVert d_i\rVert^2}{h},\qquad m_i=\frac{q_i+q_{i+1}}{2},\quad d_i=q_{i+1}-q_i"
+              data-tex="J_{\mathrm{display}}=\sum_{i=0}^{N}\int_0^{\ell_i}c(q_i+sT_i)\,ds,\quad \ell_i=\lVert q_{i+1}-q_i\rVert"
             >
-              Displayed energy sums midpoint cost times squared segment displacement divided by h.
+              Total cost adds the line integral of c over every straight segment.
             </div>
             <p>
-              The displayed <strong>length</strong> is simply the sum of segment lengths. It is
-              unweighted geometric length, not the intended cost-weighted distance.
+              Tᵢ is the segment’s unit direction. Zero-length segments contribute zero. Distance
+              alone is the sum of the segment lengths. Since c ≥ 1, total cost is at least distance;
+              their difference is the extra cost paid in the hills.
             </p>
-            <div
-              class="derivation-equation"
-              data-tex="\ell_{\mathrm{display}}=\sum_{i=0}^{N}\lVert d_i\rVert,\qquad J_{\mathrm{midpoint}}=\sum_{i=0}^{N}c(m_i)\lVert d_i\rVert"
-            >
-              Geometric length and a midpoint estimate of weighted distance use different segment
-              weights.
-            </div>
+            <details class="algebra-details">
+              <summary>Integrating a Gaussian along a segment</summary>
+              <p>
+                For a segment starting at p, of length ℓ and unit direction T, let a = (p − o) · T
+                be its along-segment offset from a bump centre. Let ρ be the perpendicular distance
+                to the supporting line. The bump contributes:
+              </p>
+              <div
+                class="derivation-equation"
+                data-tex="w e^{-\rho^2/\sigma^2}\int_0^\ell e^{-(a+s)^2/\sigma^2}\,ds"
+              >
+                Separate the constant perpendicular factor from the along-segment Gaussian.
+              </div>
+              <div
+                class="derivation-equation"
+                data-tex="w e^{-\rho^2/\sigma^2}\frac{\sigma\sqrt{\pi}}{2}\left[\operatorname{erf}\left(\frac{a+\ell}{\sigma}\right)-\operatorname{erf}\left(\frac{a}{\sigma}\right)\right]"
+              >
+                Evaluate the integral with the Gaussian error function.
+              </div>
+              <p>
+                Add this for all bumps, plus the baseline cost ℓ. The implementation uses the
+                complementary error function in the tails to reduce cancellation. Subdividing the
+                same straight segment does not change its cost, up to rounding. Even a narrow hill
+                between vertices contributes to this diagnostic.
+              </p>
+            </details>
             <p>
-              The latter expression shows how to estimate the intended weighted-distance objective;
-              it is not currently a playground diagnostic. A corrected energy diagnostic would
-              instead square c(mᵢ) in the energy sum.
+              <strong>“Lowest cost shown” is not a global optimum.</strong> It compares only the
+              displayed candidates, including ones still running or stopped without convergence.
+              Their costs are meaningful, but their solver statuses matter. The direct
+              endpoint-to-endpoint route is shown as a fixed comparison baseline.
             </p>
             <ul>
               <li>
-                <strong>Residual and energy need not fall together.</strong> Backtracking controls
-                residual. The midpoint energy is not the exact discrete functional whose gradient
-                the solver sets to zero.
+                <strong>A small residual is stationarity, not minimality.</strong> A direct path
+                through the middle of a symmetric hill can satisfy the equations while costing much
+                more than the routes around it.
               </li>
               <li>
-                <strong>A finer grid is an accuracy check.</strong> A coarse grid may miss a narrow
-                obstacle even with a tiny residual. Compare paths after increasing N.
+                <strong>Cost need not decrease every iteration.</strong> Backtracking controls the
+                ODE residual, not weighted distance. The finite-difference residual is not the
+                gradient of the displayed line integral.
               </li>
               <li>
-                <strong>The two solver modes solve the same current ODE.</strong> Damping changes
-                the iteration strategy, not the objective.
+                <strong>Refine the grid.</strong> Exact integration measures the drawn polyline
+                accurately; it does not make that polyline an accurate continuous ODE solution.
+                Coarse ODE samples can still miss narrow hills.
               </li>
               <li>
-                <strong>Rover playback is geometric.</strong> It follows the displayed polyline at
-                constant ordinary speed; it does not use the ODE's selected parameter speed or
-                simulate vehicle dynamics.
+                <strong>Soft hills are not walls.</strong> No collision constraints or vehicle
+                dynamics are modeled. Rover playback is constant-distance animation.
               </li>
             </ul>
           </section>
@@ -906,11 +820,11 @@
                   </tr>
                   <tr>
                     <td><code>_ode_derivatives</code></td>
-                    <td>The current F, F<sub>q</sub>, and F<sub>v</sub>, using A = c.</td>
+                    <td>The weighted-distance ODE F and its position and velocity derivatives.</td>
                   </tr>
                   <tr>
                     <td><code>initialize</code></td>
-                    <td>Sample one of the three polynomial guesses.</td>
+                    <td>Sample the direct route or an arc on either side.</td>
                   </tr>
                   <tr>
                     <td><code>residual</code> / <code>jacobian</code></td>
@@ -925,8 +839,10 @@
                     <td>Repeat independently for each guess and record the iteration history.</td>
                   </tr>
                   <tr>
-                    <td><code>energy</code> / <code>_state</code></td>
-                    <td>Calculate diagnostics and determine stopping status.</td>
+                    <td><code>weighted_distance</code> / <code>_state</code></td>
+                    <td>
+                      Integrate route costs, calculate diagnostics, and determine stopping status.
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -936,10 +852,8 @@
                 href="https://github.com/twallengren/path-planning-ode/blob/master/tests/test_solver.py"
                 >The numerical tests</a
               >
-              independently construct the current Euler–Lagrange equations with SymPy, compare the
-              analytic Jacobian against numerical differentiation, and check straight-line recovery,
-              symmetry, refinement, and failure handling. They establish consistency with the
-              current objective; they do not certify that it is the intended objective.
+              independently construct the Euler–Lagrange equations with SymPy, verify the analytic
+              Jacobian, and check cost integration, geometry, refinement, and failure handling.
             </p>
             <p>
               In the browser,
@@ -959,17 +873,12 @@
                 >: the length–energy relationship and its constant-speed condition. Apply it here
                 using the metric c²I.
               </li>
-              <li>
-                <a href="https://www.youtube.com/watch?v=fNBrIngCJp8"
-                  >The original linked derivation video</a
-                >: historical context from the 2019 repository. The derivation above is
-                reconstructed from the functionals and source equations.
-              </li>
+
               <li>
                 <a
                   href="https://github.com/twallengren/path-planning-ode/blob/master/examples/case_study.ipynb"
                   >The executable notebook</a
-                >: experiments using the current implementation.
+                >: reproducible weighted-distance experiments.
               </li>
             </ul>
             <a class="primary-link" href="./#playground">Back to the playground <span>↗</span></a>

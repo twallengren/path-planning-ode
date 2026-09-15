@@ -1,91 +1,100 @@
-# Mathematics and numerical conventions
+# Weighted distance: mathematical conventions
 
-For a readable, step-by-step explanation with typeset equations, see
-**[the full derivation page](https://twallengren.github.io/path-planning-ode/derivation.html)**
-([HTML source](../web/derivation.html)). It covers both the current equations and
-the intended cost-weighted-distance objective. This document is the compact
-reference for the **currently implemented** energy, which still uses c rather
-than c² as the coefficient of squared speed.
+For a typeset, step-by-step derivation, read
+[From a cost to a curve](https://twallengren.github.io/path-planning-ode/derivation.html)
+([HTML source](../web/derivation.html)). This is the compact reference for the solver.
 
-## Objective and cost
+## Objective
 
-Let q(t) = (x(t), y(t)), t ∈ [0, 1], with prescribed endpoints. Define
+Fix q(0) = a and q(1) = b. The parameter t labels the curve; it is not physical time.
 
-$$c(q)=1+\sum_i w_i\exp(-\|q-o_i\|^2/s_i^2),\qquad E[q]=\int_0^1 c(q)\|q'\|^2\,dt.$$
+$$J[q]=\int_0^1 c(q)\|q'\|\,dt,\qquad c(q)=1+\sum_i w_i e^{-\|q-o_i\|^2/\sigma_i^2}.$$
 
-Weights are nonnegative and widths positive, so c ≥ 1. Width one recovers the
-original Gaussian. Width is the 1/e radius, not the standard deviation of a
-normalized Gaussian. No obstacle is a forbidden region.
+Weights are nonnegative and widths positive, so c ≥ 1. Width is the 1/e radius.
+Hills are soft costs, not collision boundaries. Weighted distance is invariant
+under orientation-preserving reparameterization.
 
-This is parameterized energy, not ordinary path length. For a fixed geometric
-curve, minimizing over parameterizations makes √c‖q′‖ constant and relates energy
-to the square of weighted length ∫√c ds. The implementation solves the ODE on a
-uniform parameter grid; it does not explicitly reparameterize curves.
+For a smooth regular curve, direct Euler–Lagrange gives
 
-## Euler–Lagrange equations
+$$\frac{d}{dt}\left(\frac{c q'}{\|q'\|}\right)-\|q'\|\nabla c=0.$$
 
-For L = c(q)‖q′‖², ∂L/∂q′ = 2c q′ and ∂L/∂q = ∇c‖q′‖². Thus
+This determines bending but leaves the traversal schedule free.
 
-$$2c q''+2(\nabla c\cdot q')q'-\nabla c\|q'\|^2=0.$$
+## Parameterization and ODE
 
-Writing v = q′,
+Use the auxiliary energy E = ∫ c²‖q′‖² dt. Cauchy–Schwarz gives J² ≤ E on [0,1],
+with equality at constant weighted speed c‖q′‖. Every regular geometric route
+admits that parameterization. Minimizing E over curves and parameterizations
+therefore gives the same minimizing geometric routes as minimizing J.
+This does not equate the objectives for an arbitrary fixed schedule.
 
-$$q''=F(q,v)=\frac{\|v\|^2\nabla c-2v(\nabla c\cdot v)}{2c}.$$
+Euler–Lagrange for E gives, with v = q′,
 
-In coordinates this recovers the original equations:
+$$q''=F(q,v)=\frac{\|v\|^2\nabla c-2v(\nabla c\cdot v)}{c}.$$
 
-$$x''=\frac{c_x(y'^2-x'^2)-2c_yx'y'}{2c},\qquad y''=\frac{c_y(x'^2-y'^2)-2c_xx'y'}{2c}.$$
+$$x''=\frac{c_x(y'^2-x'^2)-2c_yx'y'}{c},\qquad
+y''=\frac{c_y(x'^2-y'^2)-2c_xx'y'}{c}.$$
 
-The symbolic test independently constructs the Euler–Lagrange equations and
-compares their solution with the implementation. Stationarity does not establish
-local or global minimality.
+Along a continuous solution, c²‖v‖² is constant. Stationarity does not prove
+minimality. Coincident endpoints admit the constant zero-cost path.
 
 ## Discretization and Jacobian
 
-N means **interior points**: N+2 stored points and N+1 intervals, h = 1/(N+1).
-Endpoints never enter the Newton unknown vector. Interior coordinates are
-interleaved: [x₁, y₁, x₂, y₂, …].
+N interior points means N+2 stored points and N+1 intervals: h = 1/(N+1).
+Unknowns are interleaved [x₁, y₁, x₂, y₂, …]; endpoints are fixed.
 
 $$R_i=\frac{q_{i+1}-2q_i+q_{i-1}}{h^2}-F\left(q_i,\frac{q_{i+1}-q_{i-1}}{2h}\right).$$
 
-Let g = ∇c and H = ∇²c. The analytic derivatives are
+For g = ∇c and H = ∇²c, the analytic derivatives are
 
-$$F_q=\frac{\|v\|^2H-2v(Hv)^T}{2c}-\frac{Fg^T}{c},\qquad F_v=\frac{gv^T-vg^T-(g\cdot v)I}{c}.$$
+$$F_q=\frac{\|v\|^2H-2v(Hv)^T}{c}-\frac{Fg^T}{c},\qquad
+F_v=\frac{2(gv^T-vg^T-(g\cdot v)I)}{c}.$$
 
-Nonzero Jacobian blocks in each block row are
+$$J_{i,i-1}=I/h^2+F_v/(2h),\quad
+J_{i,i}=-2I/h^2-F_q,\quad J_{i,i+1}=I/h^2-F_v/(2h).$$
 
-$$J_{i,i-1}=I/h^2+F_v/(2h),\quad J_{i,i}=-2I/h^2-F_q,\quad J_{i,i+1}=I/h^2-F_v/(2h).$$
+The implementation uses a dense linear solve. This second-order finite-difference
+system approximates the continuous ODE, not the exact gradient of the polyline cost.
 
-A dense linear solve is sufficient for the browser's small systems. The residual
-approximates the continuous ODE; it is not exactly the gradient of the separately
-displayed midpoint energy. Mesh refinement tests check consistency.
+Starting curves are qβ(t) = a + t(b−a) + 0.3β sin(πt) n, where
+n = (−(bᵧ−aᵧ), bₓ−aₓ). Direct uses β=0, Right arc β=−1, Left arc β=1.
+Their JSON keys are straight, bend-x, and bend-y.
 
-## Newton and stopping
+## Iteration and stopping
 
-Solve JΔ = −R and update interior points by αΔ. Undamped mode uses α=1. Damped
-mode tries α=1, 1/2, …, 2⁻²⁰, accepting the first finite trial satisfying
+Solve JΔ = −R; update interior coordinates by αΔ. Damped mode tries
+α = 1, 1/2, …, 2⁻²⁰ and accepts the first finite trial satisfying
 
-$$\|R_{new}\|^2\le(1-10^{-4}\alpha)\|R_{old}\|^2.$$
+$$\|R_{\mathrm{new}}\|^2\le(1-10^{-4}\alpha)\|R_{\mathrm{old}}\|^2.$$
 
-The displayed norm is RMS = ‖R‖/√(2N). Defaults: tolerance 1e−7, 100 iterations.
-Outcomes are `running`, `converged`, `stagnated` (no acceptable backtracking step),
-`singular` (linear solve failed), `nonfinite`, or `iteration_limit`. Failed steps
-retain the last finite path and diagnostics. Initially converged guesses have
-zero iterations. Convergence takes precedence over the iteration limit.
+Undamped mode takes a full finite step. The stopping norm is RMS = ‖R‖/√(2N).
+Defaults: tolerance 1e−7, 100 iterations.
 
-Energy uses midpoint quadrature over polyline segments; length is the sum of
-Euclidean segment lengths. Neither is used as the damping merit function.
-Residual convergence implies neither monotone energy nor clearance.
+Statuses: running, converged, stagnated (no acceptable backtracking step),
+singular (failed linear solve), nonfinite, or iteration_limit.
+Failed updates retain the last accepted path and diagnostics.
 
-## Experiments
+## Measure the route
 
-1. Empty fields recover a straight line in at most one step from all three
-   polynomial guesses. Energy is squared endpoint distance.
-2. Central symmetry can preserve a straight-through stationary path, even through
-   high cost. Bent guesses expose other stationary paths.
-3. Refine the mesh around narrow bumps. A coarse low residual is not evidence of
-   an accurate continuous solution.
-4. Reset before comparing damped and undamped modes on the challenging preset.
+The weighted_distance function integrates c ds along each polyline segment.
+For one Gaussian bump and a segment of length ℓ and unit tangent T starting at p,
+set a = (p−o)·T, and let ρ be the perpendicular distance to its supporting line.
+Its contribution is
 
-The original linked video is credited in the README; this derivation was
-recovered from and independently checked against the source equations.
+$$w e^{-\rho^2/\sigma^2}\frac{\sigma\sqrt{\pi}}{2}
+\left[\operatorname{erf}\left(\frac{a+\ell}{\sigma}\right)
+-\operatorname{erf}\left(\frac{a}{\sigma}\right)\right].$$
+
+Add all bump contributions and baseline length ℓ. The implementation uses erfc
+in Gaussian tails to reduce cancellation. Zero-length segments contribute zero.
+Subdivision of a straight segment, reversed traversal, and repeated vertices do
+not change the result, apart from floating-point rounding.
+
+The state reports cost (weighted distance) and length (geometric polyline length).
+Energy remains an auxiliary midpoint estimate of ∫ c²‖q′‖² dt.
+Neither cost nor energy is the Newton damping merit function.
+
+“Lowest cost shown” compares displayed candidates, including unfinished ones;
+it is not a global optimality claim. A low residual can describe a high-cost
+stationary curve. Exact polyline cost integration does not eliminate ODE mesh
+error: refine the mesh and compare starting routes.

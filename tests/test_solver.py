@@ -1,4 +1,5 @@
 from dataclasses import replace
+from math import erf, pi, sqrt
 
 import numpy as np
 import pytest
@@ -8,6 +9,8 @@ from path_planning_ode import (
     Obstacle,
     Scene,
     SolverOptions,
+    cost_field,
+    energy,
     initialize,
     jacobian,
     ode,
@@ -15,13 +18,14 @@ from path_planning_ode import (
     residual,
     solve,
     step,
+    weighted_distance,
 )
 
 
 def test_symbolic_euler_lagrange():
     x, y, u, v, ax, ay = sp.symbols("x y u v ax ay")
     c = 1 + 3 * sp.exp(-((x - 2) ** 2 + (y - 3) ** 2) / 4)
-    lagrangian = c * (u * u + v * v)
+    lagrangian = c**2 * (u * u + v * v)
     equations = []
     for q, velocity in [(x, u), (y, v)]:
         momentum = sp.diff(lagrangian, velocity)
@@ -35,6 +39,89 @@ def test_symbolic_euler_lagrange():
         ode(np.array([1.0, 2.0]), np.array([3.0, 4.0]), (Obstacle(2, 3, 3, 2),)),
         function(1.0, 2.0, 3.0, 4.0),
     )
+
+
+def test_ode_satisfies_direct_weighted_length_equations():
+    """Independently start from c|v|, without using the energy derivation."""
+    x, y, u, v, ax, ay = sp.symbols("x y u v ax ay", real=True)
+    c = 1 + 3 * sp.exp(-((x - 2) ** 2 + (y - 3) ** 2) / 4)
+    lagrangian = c * sp.sqrt(u * u + v * v)
+    equations = []
+    for q, velocity in [(x, u), (y, v)]:
+        momentum = sp.diff(lagrangian, velocity)
+        equations.append(
+            sum(sp.diff(momentum, a) * b for a, b in [(x, u), (y, v), (u, ax), (v, ay)])
+            - sp.diff(lagrangian, q)
+        )
+    evaluate = sp.lambdify((x, y, u, v, ax, ay), equations, "numpy")
+    for position, velocity in [([1, 2], [3, 4]), ([2, 4], [-2, 1]), ([0, 1], [0.2, -0.4])]:
+        acceleration = ode(np.array(position), np.array(velocity), (Obstacle(2, 3, 3, 2),))
+        np.testing.assert_allclose(evaluate(*position, *velocity, *acceleration), 0, atol=1e-13)
+
+
+def test_weighted_distance_counts_a_thin_hill_between_vertices():
+    scene = Scene(obstacles=(Obstacle(0, 0, 9, 0.1),))
+    path = np.array([[-2, 0], [2, 0]])
+    expected = 4 + 9 * 0.1 * sqrt(pi) * erf(20)
+    assert weighted_distance(path, scene) == pytest.approx(expected, rel=1e-14)
+
+
+def test_weighted_distance_is_independent_of_straight_segment_sampling():
+    scene = presets()["asymmetric"]
+    path = np.array([[-2, -1], [3, 4], [10, 12]], dtype=float)
+    refined = np.concatenate(
+        [
+            a + np.array([0, 0.001, 0.15, 0.8, 1])[:, None] * (b - a)
+            for a, b in zip(path[:-1], path[1:], strict=True)
+        ]
+    )
+    expected = weighted_distance(path, scene)
+    assert weighted_distance(refined, scene) == pytest.approx(expected, rel=1e-14)
+    assert weighted_distance(path[::-1], scene) == pytest.approx(expected, rel=1e-14)
+    assert weighted_distance(np.repeat(path, 2, axis=0), scene) == pytest.approx(expected)
+    assert weighted_distance(np.array([[3, 4], [3, 4]]), scene) == 0
+
+
+def test_weighted_distance_matches_independent_numerical_quadrature():
+    scene = presets()["asymmetric"]
+    path = np.array([[-4, 7], [2, 2], [4, 5], [12, 12]])
+    # Dense trapezoidal integration, independent of the analytic erf formula.
+    t = np.linspace(0, 1, 20001)
+    expected = 0
+    for a, b in zip(path[:-1], path[1:], strict=True):
+        field = cost_field(a + t[:, None] * (b - a), scene.obstacles)
+        expected += np.linalg.norm(b - a) * np.trapezoid(field, t)
+    assert weighted_distance(path, scene) == pytest.approx(expected, rel=1e-8)
+
+
+def test_energy_uses_squared_cost_and_reports_cost_separately():
+    scene = Scene(obstacles=(Obstacle(0, 0, 2, 1),))
+    path = np.array([[-1, 0], [1, 0]])
+    assert energy(path, scene) == pytest.approx(3**2 * 2**2)
+    state = initialize(scene)
+    assert state.cost == weighted_distance(state.path, scene)
+    assert state.to_dict()["cost"] == state.cost
+
+
+@pytest.mark.parametrize("end", [(8, 0), (0, 8), (8, 8)])
+def test_arcs_are_distinct_for_any_endpoint_direction(end):
+    scene = Scene(start=(0, 0), end=end)
+    straight, right, left = [initialize(scene, g).path for g in scene.guesses]
+    assert not np.allclose(straight, right)
+    assert not np.allclose(straight, left)
+    np.testing.assert_allclose((right + left) / 2, straight, atol=1e-14)
+
+
+def test_longer_detour_can_have_lower_weighted_cost():
+    scene = presets()["central"]
+    final = solve(scene).final
+    direct, detour = final["straight"], final["bend-x"]
+    assert direct.status == detour.status == "converged"
+    assert detour.length > direct.length
+    assert detour.cost < direct.cost * 0.6
+    for state in final.values():
+        assert state.cost >= state.length
+        assert state.cost == weighted_distance(state.path, scene)
 
 
 @pytest.mark.parametrize("n", [1, 2, 15])

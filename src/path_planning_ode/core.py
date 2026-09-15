@@ -1,4 +1,7 @@
-"""Finite-difference boundary-value solver for E = integral c(q) |q'|² dt.
+"""Weighted-distance paths: minimize integral c(q) |q'| dt.
+
+The boundary-value ODE comes from the equivalent energy integral c(q)^2 |q'|² dt,
+which selects constant weighted speed along stationary curves.
 
 Points are ordered (x, y), including both fixed endpoints. There are N interior
 points and N+1 intervals. Newton solves the Euler–Lagrange residual, which is
@@ -6,6 +9,7 @@ not a minimization algorithm and does not enforce collision constraints.
 """
 
 from dataclasses import asdict, dataclass, field
+from math import erf, erfc, pi, sqrt
 from typing import Literal
 
 import numpy as np
@@ -97,6 +101,7 @@ class IterationState:
     residual_norm: float
     energy: float
     length: float
+    cost: float
     status: Status = "running"
     damping: float = 0.0
 
@@ -107,6 +112,7 @@ class IterationState:
             "residual_norm": self.residual_norm,
             "energy": self.energy,
             "length": self.length,
+            "cost": self.cost,
             "status": self.status,
             "damping": self.damping,
         }
@@ -156,16 +162,20 @@ def _ode_derivatives(q: Array, v: Array, obstacles: tuple[Obstacle, ...]):
     c, grad, hess = _field(q, obstacles)
     speed2 = np.sum(v * v, axis=-1)
     gv = np.sum(grad * v, axis=-1)
-    f = (speed2[..., None] * grad - 2 * v * gv[..., None]) / (2 * c[..., None])
+    f = (speed2[..., None] * grad - 2 * v * gv[..., None]) / c[..., None]
     hv = np.einsum("...ij,...j->...i", hess, v)
     fq = (speed2[..., None, None] * hess - 2 * v[..., :, None] * hv[..., None, :]) / (
-        2 * c[..., None, None]
+        c[..., None, None]
     ) - f[..., :, None] * grad[..., None, :] / c[..., None, None]
     fv = (
-        grad[..., :, None] * v[..., None, :]
-        - v[..., :, None] * grad[..., None, :]
-        - gv[..., None, None] * np.eye(2)
-    ) / c[..., None, None]
+        (
+            grad[..., :, None] * v[..., None, :]
+            - v[..., :, None] * grad[..., None, :]
+            - gv[..., None, None] * np.eye(2)
+        )
+        * 2
+        / c[..., None, None]
+    )
     return f, fq, fv
 
 
@@ -198,32 +208,82 @@ def jacobian(path: Array, scene: Scene) -> Array:
 
 
 def energy(path: Array, scene: Scene) -> float:
-    """Midpoint quadrature of the continuous energy, for diagnostics."""
+    """Midpoint estimate of integral c²|q'|²; an auxiliary solver diagnostic."""
     d = np.diff(path, axis=0)
     c = cost_field((path[1:] + path[:-1]) / 2, scene.obstacles)
-    return float(np.sum(c * np.sum(d * d, axis=1)) * (len(path) - 1))
+    return float(np.sum(c**2 * np.sum(d * d, axis=1)) * (len(path) - 1))
+
+
+def weighted_distance(path: Array, scene: Scene) -> float:
+    """Integrate c ds analytically along each segment of the displayed polyline.
+
+    Gaussian line integrals use erf/erfc. Cost is unchanged by subdividing a
+    straight segment, and even a thin bump between vertices is counted.
+    """
+    path = np.asarray(path, dtype=float)
+    d = np.diff(path, axis=0)
+    lengths = np.linalg.norm(d, axis=1)
+    if not np.isfinite(lengths).all():
+        return float("inf")
+    nonzero = lengths > 0
+    lengths = lengths[nonzero]
+    tangents = d[nonzero] / lengths[:, None]
+    starts = path[:-1][nonzero]
+    total = float(np.sum(lengths))
+    for obstacle in scene.obstacles:
+        offset = starts - [obstacle.x, obstacle.y]
+        along = np.sum(offset * tangents, axis=1)
+        # In 2D the cross product avoids subtracting nearly equal squared norms.
+        normal = offset[:, 0] * tangents[:, 1] - offset[:, 1] * tangents[:, 0]
+        z0 = along / obstacle.width
+        z1 = (along + lengths) / obstacle.width
+        integrals = np.array(
+            [
+                erfc(a) - erfc(b) if a >= 0 else erfc(-b) - erfc(-a) if b <= 0 else erf(b) - erf(a)
+                for a, b in zip(z0, z1, strict=True)
+            ]
+        )
+        total += float(
+            np.sum(
+                obstacle.weight
+                * np.exp(-((normal / obstacle.width) ** 2))
+                * obstacle.width
+                * sqrt(pi)
+                / 2
+                * integrals
+            )
+        )
+    return total
 
 
 def _state(path: Array, scene: Scene, iteration: int, damping: float = 0) -> IterationState:
     norm = float(np.linalg.norm(residual(path, scene)) / np.sqrt(2 * (len(path) - 2)))
     value = energy(path, scene)
     length = float(np.sum(np.linalg.norm(np.diff(path, axis=0), axis=1)))
+    cost = weighted_distance(path, scene)
     status: Status = "running"
-    if not np.isfinite([norm, value, length]).all():
+    if not np.isfinite([norm, value, length, cost]).all():
         status = "nonfinite"
     elif norm <= scene.options.tolerance:
         status = "converged"
     elif iteration >= scene.options.max_iterations:
         status = "iteration_limit"
-    return IterationState(path.copy(), iteration, norm, value, length, status, damping)
+    return IterationState(path.copy(), iteration, norm, value, length, cost, status, damping)
 
 
 def initialize(scene: Scene, guess: str = "straight") -> IterationState:
-    exponents = {"straight": (1, 1), "bend-x": (5, 1), "bend-y": (1, 5)}
-    if guess not in exponents:
+    sides = {"straight": 0, "bend-x": -1, "bend-y": 1}
+    if guess not in sides:
         raise ValueError("Unknown initial guess.")
     t = np.linspace(0, 1, scene.options.interior_points + 2)[:, None]
-    path = np.asarray(scene.start) + (np.asarray(scene.end) - scene.start) * t ** exponents[guess]
+    displacement = np.asarray(scene.end) - scene.start
+    normal = np.array([-displacement[1], displacement[0]])
+    path = (
+        np.asarray(scene.start)
+        + displacement * t
+        + (sides[guess] * 0.3 * np.sin(np.pi * t) * normal)
+    )
+    path[[0, -1]] = [scene.start, scene.end]
     return _state(path, scene, 0)
 
 
@@ -239,6 +299,7 @@ def step(scene: Scene, state: IterationState) -> IterationState:
             state.residual_norm,
             state.energy,
             state.length,
+            state.cost,
             status,
         )
 

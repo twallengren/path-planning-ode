@@ -14,6 +14,7 @@ from .core import (
     residual,
     solve,
     step,
+    weighted_distance,
 )
 from .presets import presets
 
@@ -32,4 +33,5 @@ __all__ = [
     "residual",
     "solve",
     "step",
+    "weighted_distance",
 ]

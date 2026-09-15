@@ -1,8 +1,8 @@
 # The shape of a path
 
-An interactive case study of path planning with the Euler–Lagrange equations.
-Move obstacles, compare three initial guesses, and watch Newton's method reshape
-a path through a landscape of soft costs.
+The shortest route isn't always the cheapest. Give every place a cost per unit
+distance, then explore when a detour is worth taking. Move hills, vary their
+strength and width, and compare candidate routes through the same landscape.
 
 **[Explore the website](https://twallengren.github.io/path-planning-ode/)** ·
 **[Read the full derivation](https://twallengren.github.io/path-planning-ode/derivation.html)** ·
@@ -60,17 +60,21 @@ scene = Scene(
 )
 result = solve(scene)
 for guess, final in result.final.items():
-    print(guess, final.status, final.residual_norm, final.energy)
+    print(guess, final.status, final.cost, final.length)
     # final.path has shape (N + 2, 2), including endpoints.
 ```
 
 Use `initialize(scene, guess)` and `step(scene, state)` for single iterations.
 `result.histories` contains snapshots for each guess, with the path, iteration,
-RMS residual, midpoint energy, geometric length, damping factor, and status.
+total weighted-distance `cost`, geometric `length`, RMS residual, damping factor,
+and status. An auxiliary `energy` diagnostic estimates the integral of c² times
+squared parameter speed; it is not the reported route cost.
 A terminal state is returned unchanged by `step`.
 
 `Scene.to_dict()` and `Scene.from_dict(data)` provide version 1 JSON interchange.
-The guesses are `straight`, `bend-x` (t⁵, t), and `bend-y` (t, t⁵). `presets()`
+The guesses are `straight` (Direct), `bend-x` (Right arc), and `bend-y` (Left arc).
+The arcs add a perpendicular sine displacement with peak 30% of the endpoint
+distance, so they remain distinct for horizontal and vertical routes. `presets()`
 returns deterministic scenes: `empty`, `central`, `asymmetric`, `passage`, and
 `challenge`. No random seed is required.
 
@@ -81,8 +85,8 @@ uv sync --extra notebook
 uv run jupyter lab examples/case_study.ipynb
 ```
 
-The notebook explains the objective, compares starting guesses and Newton modes,
-plots convergence, and demonstrates scene interchange.
+The notebook compares route cost against distance, explores strength and width,
+checks sampling invariance, and demonstrates scene interchange.
 
 ## Develop the website
 
@@ -146,27 +150,28 @@ publishing under a different owner.
 
 ## What this algorithm does
 
-The objective is E[q] = ∫ c(q)‖q′‖² dt, with fixed endpoints. Each obstacle adds
-a Gaussian bump to the positive cost field. Euler–Lagrange gives a coupled
-second-order ODE. Central differences turn it into a nonlinear system, solved
-with damped or undamped Newton iterations.
+The objective is total weighted distance: **add up local cost × distance traveled**
+along a route with fixed endpoints. Traversing the same curve faster does not
+change its cost. Each hill adds a Gaussian bump to a baseline cost of one.
+
+To find stationary candidates, the solver uses the equivalent continuous energy
+with integrand c² times squared parameter speed. It selects constant weighted
+speed; minimizing it over routes and their parameterizations gives the same
+minimizing geometric routes. Euler–Lagrange gives a coupled second-order ODE.
+Central differences and damped Newton solve its boundary-value problem.
+
+`weighted_distance(path, scene)` integrates the field analytically along every
+segment of the displayed polyline, including narrow hills between vertices.
+This is the `cost` used to compare routes. Subdividing a straight segment leaves
+its cost unchanged. The page also compares against the direct endpoint-to-endpoint
+route, and labels the cheapest candidate **lowest cost shown**, not a global optimum.
 
 - Obstacles are soft costs, not hard collision constraints.
 - A small residual does not establish a minimum or global optimality.
-- Damping seeks residual decrease, not energy decrease. Initial guesses and mesh
-  resolution influence results; narrow obstacles can be undersampled.
+- Damping seeks residual decrease, not cost decrease. Initial guesses and mesh
+  resolution influence results; the ODE can undersample narrow obstacles even though the cost diagnostic counts them.
 - Rover playback uses constant geometric speed, not simulated robot dynamics.
 
 See [the mathematical conventions](docs/mathematics.md).
-
-## From the 2019 version
-
-The original project linked to [this derivation video](https://www.youtube.com/watch?v=fNBrIngCJp8).
-The script is preserved in [legacy/pathplanning2019.py](legacy/pathplanning2019.py).
-It has known numerical inconsistencies and is not the supported entry point.
-The old import/API is not retained: use the examples above to migrate. The new
-solver corrects the second derivative scale and timestep, verifies the Jacobian,
-replaces inversion with a linear solve, and reports failures explicitly. Both
-browser modes use the corrected equations.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and change guidelines.

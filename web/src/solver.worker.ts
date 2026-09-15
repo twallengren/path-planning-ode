@@ -37,7 +37,7 @@ context.onmessage = async ({
         runtime.FS.writeFile(`/home/pyodide/path_planning_ode/${name}`, await response.text());
       }
       runtime.runPython(
-        'import json, numpy as np\nfrom path_planning_ode import Scene, initialize, step, cost_field',
+        'import json, numpy as np\nfrom path_planning_ode import Scene, initialize, step, cost_field, weighted_distance',
       );
       context.fetch = originalFetch;
       context.postMessage({ id, result: {} });
@@ -50,7 +50,7 @@ states = {guess: initialize(scene, guess) for guess in scene.guesses}
 bounds = json.loads(bounds_json)
 xx, yy = np.meshgrid(np.linspace(bounds[0], bounds[1], 90), np.linspace(bounds[2], bounds[3], 90))
 field = cost_field(np.stack([xx, yy], axis=-1), scene.obstacles).ravel().tolist()
-json.dumps({'states': {k: v.to_dict() for k, v in states.items()}, 'field': field, 'bounds': bounds}, allow_nan=False)
+json.dumps({'states': {k: v.to_dict() for k, v in states.items()}, 'field': field, 'bounds': bounds, 'straight_cost': weighted_distance(np.array([scene.start, scene.end]), scene)}, allow_nan=False)
 `);
       context.postMessage({ id, result: JSON.parse(result) });
     } else if (action === 'step') {

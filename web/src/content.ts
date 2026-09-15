@@ -13,14 +13,14 @@ export const content = /* HTML */ ` <header class="masthead">
         <p class="eyebrow"><span class="small-line"></span>A COMPUTATIONAL CASE STUDY · 01</p>
         <h1>The shape<br />of a <em>path.</em></h1>
         <p class="standfirst">
-          What if finding a way around an obstacle<br class="desktop" />started with a question
-          about energy?
+          The shortest route isn’t always the cheapest.<br class="desktop" />When is a detour worth
+          it?
         </p>
         <p class="hero-detail">
-          An algorithm derived from the Euler–Lagrange equations.<br />Three starting guesses. A
-          landscape of possibilities.
+          Give every place a cost. Compare ways through.<br />An interactive exploration of weighted
+          distance.
         </p>
-        <a class="primary-link" href="#playground">Explore the algorithm <span>↓</span></a>
+        <a class="primary-link" href="#playground">Explore the landscape <span>↓</span></a>
       </div>
       <div
         class="hero-art"
@@ -105,17 +105,17 @@ export const content = /* HTML */ ` <header class="masthead">
       <div class="prose">
         <p>
           A straight line is a good start. But place a soft hill of cost around an obstacle, and a
-          different route may become worthwhile. The path trades distance and speed against the
-          landscape it passes through.
+          different route may become worthwhile. The path trades extra distance against the cost of
+          the places it passes through.
         </p>
         <p>
-          This project began as a small Python experiment in 2019. Its central question still makes
-          a good experiment: <em>what happens when we ask calculus to find the path?</em>
+          Imagine paying a toll for every small step: the local cost times the distance traveled.
+          Add those tolls along the route. <em>Which way has the smallest total?</em>
         </p>
-        <div class="equation">${eq("E[q]=\\int_0^1 c(q(t))\\,\\lVert q'(t)\\rVert^2\\,dt")}</div>
+        <div class="equation">${eq("J[q]=\\int_0^1 c(q(t))\\,\\lVert q'(t)\\rVert\\,dt")}</div>
         <p class="caption">
-          Energy adds up local cost × squared speed along a path with fixed endpoints. Here, t is a
-          path parameter, not a robot’s physical clock.
+          Total cost = local cost × distance, added up along the route. Walking the same route
+          faster doesn’t change its cost. The endpoints stay fixed.
         </p>
       </div>
     </section>
@@ -126,14 +126,14 @@ export const content = /* HTML */ ` <header class="masthead">
           <h2>A path you can change.</h2>
         </div>
         <p>
-          Move an obstacle. Change a guess.<br />Watch the consequences, one iteration at a time.
+          Move a hill. Change its strength or width.<br />Compare distance traveled with total cost.
         </p>
       </div>
       <div class="experiment-tabs" role="group" aria-label="Experiments">
-        <button data-preset="central"><span>01</span>Why paths bend</button
-        ><button data-preset="asymmetric" class="active"><span>02</span>Starting guesses</button
+        <button data-preset="central"><span>01</span>Worth the detour?</button
+        ><button data-preset="asymmetric" class="active"><span>02</span>Which side?</button
         ><button data-preset="passage"><span>03</span>A narrow passage</button
-        ><button data-preset="challenge"><span>04</span>Newton’s limits</button>
+        ><button data-preset="challenge"><span>04</span>Strong hills</button>
       </div>
       <div class="lab">
         <div class="visual-panel">
@@ -147,10 +147,10 @@ export const content = /* HTML */ ` <header class="masthead">
             role="img"
           ></canvas>
           <div class="legend">
-            <span><i style="background:#17695e"></i>Straight</span
-            ><span><i class="dashed" style="color:#bd592f"></i>Bend x</span
-            ><span><i class="dotted" style="color:#7566b0"></i>Bend y</span
-            ><span class="cost-key">Low <i></i> High cost</span>
+            <span><i style="background:#17695e"></i>Direct</span
+            ><span><i class="dashed" style="color:#bd592f"></i>Right arc</span
+            ><span><i class="dotted" style="color:#7566b0"></i>Left arc</span
+            ><span class="cost-key">Low <i></i> High · relative scale</span>
           </div>
           <div class="transport">
             <button id="play" class="button primary" disabled>▶ Run solver</button
@@ -181,8 +181,8 @@ export const content = /* HTML */ ` <header class="masthead">
               <button id="empty" class="text-button">Clear field</button>
             </div>
             <p id="experiment-note" class="caption">
-              Three initial guesses explore the same asymmetric landscape. Do they reach the same
-              answer?
+              Try routes on either side of the hills. Which one is cheapest, and is it also the
+              shortest?
             </p>
             <div class="endpoint-grid">
               <label
@@ -224,8 +224,8 @@ export const content = /* HTML */ ` <header class="masthead">
               </button>
             </div>
           </div>
-          <div class="control-section">
-            <h3>Solver</h3>
+          <details class="display-options">
+            <summary>Solver settings</summary>
             <label class="field-label" for="mode">Newton method</label
             ><select id="mode">
               <option value="damped">Damped · backtracking</option>
@@ -235,11 +235,11 @@ export const content = /* HTML */ ` <header class="masthead">
             ><input id="resolution" type="range" min="1" max="100" step="1" value="30" />
             <fieldset class="guess-options">
               <legend>Initial guesses</legend>
-              <label><input type="checkbox" data-guess="straight" checked /> Straight</label
-              ><label><input type="checkbox" data-guess="bend-x" checked /> Bend x</label
-              ><label><input type="checkbox" data-guess="bend-y" checked /> Bend y</label>
+              <label><input type="checkbox" data-guess="straight" checked /> Direct</label
+              ><label><input type="checkbox" data-guess="bend-x" checked /> Right arc</label
+              ><label><input type="checkbox" data-guess="bend-y" checked /> Left arc</label>
             </fieldset>
-          </div>
+          </details>
           <details class="display-options">
             <summary>Display & export</summary>
             <label><input id="heatmap" type="checkbox" checked /> Cost heatmap</label
@@ -260,31 +260,36 @@ export const content = /* HTML */ ` <header class="masthead">
         </aside>
         <div class="diagnostics">
           <div class="diagnostic-heading">
-            <h3>Watch the method think.</h3>
+            <h3>What does each route cost?</h3>
             <span id="view-label" class="caption">Live Python solver</span>
           </div>
+          <p id="cost-comparison" class="cost-comparison" aria-live="polite">
+            Computing route costs…
+          </p>
           <div id="metrics" class="metrics"></div>
           <div class="charts">
             <div>
+              <h4>Total cost <span>of the displayed route · by iteration</span></h4>
+              <canvas
+                id="cost-chart"
+                aria-label="Total weighted distance over iterations"
+                role="img"
+              ></canvas>
+            </div>
+            <details id="numerical-chart">
+              <summary>Solver convergence</summary>
               <h4>ODE residual <span>log scale · lower is closer to a root</span></h4>
               <canvas
                 id="residual-chart"
                 aria-label="Residual norm over iterations"
                 role="img"
               ></canvas>
-            </div>
-            <div>
-              <h4>Path energy <span>midpoint estimate</span></h4>
-              <canvas
-                id="energy-chart"
-                aria-label="Path energy over iterations"
-                role="img"
-              ></canvas>
-            </div>
+            </details>
           </div>
           <p class="caption diagnostic-note">
-            Converged means the discretized equations are satisfied. It does not establish a minimum
-            or a collision-free route.
+            Route labels identify their starting shapes. “Lowest cost shown” compares these
+            candidates, not every possible route. Converged means the numerical equations are
+            satisfied, not that a minimum is proven. Cost can rise during a solve.
           </p>
         </div>
       </div>
@@ -293,7 +298,7 @@ export const content = /* HTML */ ` <header class="masthead">
     <section class="reading-section">
       <div>
         <p class="eyebrow">03 / THINGS TO NOTICE</p>
-        <h2>The interesting part<br />isn’t just the answer.</h2>
+        <h2>A longer way.<br />A smaller bill.</h2>
       </div>
       <div class="observations">
         <article>
@@ -307,28 +312,28 @@ export const content = /* HTML */ ` <header class="masthead">
         </article>
         <article>
           <span class="observation-number">02</span>
-          <h3>The first guess matters.</h3>
+          <h3>Width and strength do different things.</h3>
           <p>
-            Newton follows local information. Different starting curves may reach different
-            stationary paths—or stop without converging. Symmetric scenes make this especially
-            visible.
+            Strength changes the price of crossing a hill. Width changes how far you must go to
+            avoid it. Adjust them separately: does crossing or detouring become more attractive?
           </p>
-          <button class="text-button" data-preset="asymmetric">Compare three guesses →</button>
+          <button class="text-button" data-preset="central">Change the hill →</button>
         </article>
         <article>
           <span class="observation-number">03</span>
-          <h3>Smaller steps can help.</h3>
+          <h3>There can be more than one answer.</h3>
           <p>
-            A full Newton step can overshoot. Backtracking shortens it until the residual decreases.
-            That improves control, but doesn’t guarantee that a solution will be found.
+            Routes on opposite sides can both settle down, with very different costs. The starting
+            curve affects what the solver finds. Compare candidates rather than trusting the first
+            answer.
           </p>
-          <button class="text-button" data-preset="challenge">Explore a difficult scene →</button>
+          <button class="text-button" data-preset="asymmetric">Compare both sides →</button>
         </article>
       </div>
     </section>
     <section id="mathematics" class="math-section">
       <p class="eyebrow">04 / UNDER THE SURFACE</p>
-      <h2>From an energy to an equation.</h2>
+      <h2>From a cost to a curve.</h2>
       <p class="math-intro">
         The geometry is the invitation. Here is the mathematics underneath.
         <a href="./derivation.html" class="derivation-link"
@@ -347,57 +352,40 @@ export const content = /* HTML */ ` <header class="masthead">
         </div>
       </details>
       <details>
-        <summary><span>02</span>The Euler–Lagrange derivation</summary>
+        <summary><span>02</span>How we find candidate routes</summary>
         <div class="detail-body">
           <p>
-            Fix both endpoints and take the Lagrangian L = c(q)‖q′‖². The Euler–Lagrange condition
-            gives:
+            Weighted distance depends on the route, not how quickly you trace it. To obtain a
+            definite parameterization, we use an equivalent energy with cost squared. Minimizing it
+            over paths and their parameterizations gives the same minimizing geometric routes.
           </p>
-          ${eq("\\frac{d}{dt}(2c q')-\\nabla c\\,\\lVert q'\\rVert^2=0")}${eq("q''=\\frac{\\lVert q'\\rVert^2\\nabla c-2q'(\\nabla c\\cdot q')}{2c}")}
+          ${eq("E[q]=\\int_0^1 c(q)^2\\,\\lVert q'\\rVert^2\\,dt")}
+          <p>Euler–Lagrange gives the differential equation we solve:</p>
+          ${eq("q''=\\frac{\\lVert q'\\rVert^2\\nabla c-2q'(\\nabla c\\cdot q')}{c}")}
           <p>
-            This recovers the two coupled equations in the original implementation. It is a
-            stationarity condition: it does not distinguish minima from other stationary paths.
-            Parameterization also matters because the energy uses squared speed.
+            We sample a curve, hold its endpoints fixed, and use damped Newton steps to reduce the
+            errors in this equation. That finds stationary candidates, which we then compare using
+            their actual weighted distance.
           </p>
         </div>
       </details>
       <details>
-        <summary><span>03</span>Turning the equation into an algorithm</summary>
+        <summary><span>03</span>What the numbers can tell you</summary>
         <div class="detail-body">
           <p>
-            With N interior points, there are N+1 equal intervals, so h = 1/(N+1). Central
-            differences approximate velocity and acceleration:
-          </p>
-          ${eq("q_i'\\approx\\frac{q_{i+1}-q_{i-1}}{2h},\\qquad q_i''\\approx\\frac{q_{i+1}-2q_i+q_{i-1}}{h^2}")}
-          <p>
-            Collect the ODE errors into R(q). Solve JΔ = −R and update the interior points by αΔ.
-            Undamped Newton uses α = 1; damped Newton halves α until the squared residual satisfies
-            an Armijo decrease, or reports stagnation after 21 attempts.
+            Total cost integrates the Gaussian field along every straight segment of the displayed
+            path. Distance counts only geometric length. Their difference is the extra cost paid for
+            passing through hills.
           </p>
           <p>
-            The displayed residual is the root mean square of the coordinate errors. Energy is
-            estimated separately using midpoint quadrature, so it need not decrease along a
-            root-finding iteration.
-          </p>
-        </div>
-      </details>
-      <details>
-        <summary><span>04</span>What changed since 2019?</summary>
-        <div class="detail-body">
-          <p>
-            The original code used h in the residual’s second derivative but h² in its Jacobian, and
-            its timestep differed from the point spacing. This version corrects both, verifies the
-            analytic Jacobian, and solves the linear system directly instead of forming an inverse.
+            The residual measures how well the sampled curve satisfies the ODE. A small residual is
+            not a certificate of the cheapest possible route. Increase the resolution to check
+            stability, especially near narrow hills. Soft costs do not enforce collision avoidance.
           </p>
           <p>
-            Both modes here use the corrected equations. The original script is preserved in the
-            repository’s legacy directory. Divergence, singular systems, and iteration limits are
-            reported as outcomes rather than hidden.
-          </p>
-          <p>
-            <a href="https://www.youtube.com/watch?v=fNBrIngCJp8"
-              >Original linked derivation video ↗</a
-            >
+            The same Python implementation runs here and locally. The
+            <a href="./derivation.html">full derivation</a> connects the objective,
+            parameterization, differential equations, and numerical solver step by step.
           </p>
         </div>
       </details>
@@ -423,6 +411,6 @@ export const content = /* HTML */ ` <header class="masthead">
   </main>
   <footer>
     <a class="wordmark" href="#">PATH / PLANNING</a>
-    <p>A 2019 idea, revisited. Built for curiosity.</p>
+    <p>Every step has a cost. Built for curiosity.</p>
     <a href="https://github.com/twallengren/path-planning-ode">View on GitHub ↗</a>
   </footer>`;
