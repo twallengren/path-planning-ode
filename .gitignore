@@ -123,6 +123,7 @@ web/public/runtime
 web/public/python/
 web/public/presets.json
 web/public/preview.json
+web/public/playground-preview.json
 web/public/python-manifest.json
 web/public/terrain/
 web/public/study/

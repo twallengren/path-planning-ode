@@ -27,8 +27,9 @@ test('derivation typesets every equation without loading Python and works under 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/derivation-mobile.png', fullPage: true });
   await page.getByRole('link', { name: 'Back to the playground', exact: false }).click();
-  await expect(page).toHaveURL(/path-planning-ode\/#playground$/);
-  await page.locator('.derivation-link').click();
+  await expect(page).toHaveURL(/path-planning-ode\/#playground-workspace$/);
+  await page.getByText('Mathematical diagnostics', { exact: true }).click();
+  await page.getByRole('link', { name: 'Read the full derivation', exact: false }).click();
   await expect(page.locator('h1')).toContainText('From a cost');
 });
 

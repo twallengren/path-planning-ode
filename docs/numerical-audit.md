@@ -125,6 +125,11 @@ reported separately and are not pooled.
 
 No audit result supports a blanket global-optimality claim.
 
+The separate [playground numerical audit](playground-audit.md) checks the
+freehand editor's composite quadrature, analytic energy gradient, brush-field
+construction, held-point constraints, incremental descent and Newton updates,
+and 32/64/128-point refinement behaviour.
+
 ## Experiment and statistics gate
 
 The independent experiment audit covers:

@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 
 const python = existsSync('.venv/bin/python') ? '.venv/bin/python' : 'python';
 async function ready(page: Page) {
-  await page.goto('./');
+  await page.goto('./explorer.html');
   await expect(page.locator('#runtime')).toContainText('Python + NumPy ready', { timeout: 60_000 });
   await expect(page.locator('#view-label')).toHaveText('Live Python solver');
 }
@@ -111,7 +111,7 @@ test('loading failure preserves essay and precomputed history; retry recovers', 
   page,
 }) => {
   await page.route('**/runtime/pyodide.asm.wasm', (route) => route.abort());
-  await page.goto('./');
+  await page.goto('./explorer.html');
   await expect(page.locator('#retry')).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('#view-label')).toContainText('Precomputed example');
   await expect(page.locator('h1')).toContainText('The shape');

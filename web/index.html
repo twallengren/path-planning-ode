@@ -3,19 +3,251 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f7f6f2" />
+    <meta name="theme-color" content="#f4f1e9" />
     <meta
       name="description"
-      content="When is a detour worth it? Explore weighted distance: reshape a cost landscape and compare the cost of different routes."
+      content="Paint a cost landscape, reshape a route, and watch a browser-based Python solver respond."
     />
-    <title>The shape of a path · Weighted distance, explored</title>
+    <title>Path playground · Paint the cost of a journey</title>
   </head>
-  <body>
-    <div id="app"></div>
-    <noscript
-      >This interactive case study requires JavaScript. The derivation and Python examples are
-      available at github.com/twallengren/path-planning-ode.</noscript
-    >
-    <script type="module" src="/src/main.ts"></script>
+  <body class="playground-page">
+    <a class="playground-skip" href="#playground-workspace">Skip to the playground</a>
+    <header class="playground-header">
+      <a class="playground-wordmark" href="./">PATH / PLANNING <span>live playground</span></a>
+      <nav aria-label="Main">
+        <a href="#how-it-works">How it works</a>
+        <a href="./terrain.html">Terrain lab</a>
+        <a href="./terrain.html#results">Research</a>
+        <a href="https://github.com/twallengren/path-planning-ode">Source ↗</a>
+      </nav>
+    </header>
+    <main>
+      <section class="playground-intro">
+        <div>
+          <p class="playground-kicker">INTERACTIVE PATH PLANNING · NORMALIZED UNITS</p>
+          <h1>Paint the cost.<br /><em>Bend the path.</em></h1>
+        </div>
+        <div class="playground-intro-copy">
+          <p>
+            Draw expensive regions onto the map, pull the route into a better shape, and watch the
+            path adjust in your browser.
+          </p>
+          <p class="playground-hint">
+            Start by dragging the green route, or choose Paint and draw a hill.
+          </p>
+        </div>
+      </section>
+      <section
+        id="playground-workspace"
+        class="playground-shell"
+        aria-labelledby="playground-title"
+      >
+        <div class="playground-title-row">
+          <div>
+            <p class="playground-kicker">LIVE CANVAS</p>
+            <h2 id="playground-title">One field, one evolving route.</h2>
+          </div>
+          <div class="playground-runtime-row">
+            <span id="playground-runtime" role="status" aria-live="polite"
+              >Starting Python + NumPy…</span
+            ><button id="playground-retry" class="playground-link-button" hidden>
+              Retry loading
+            </button>
+          </div>
+        </div>
+        <div class="playground-layout">
+          <div class="playground-stage">
+            <div class="playground-tools" role="toolbar" aria-label="Canvas tools">
+              <button class="active" data-playground-tool="grab" aria-pressed="true">
+                <kbd>G</kbd> Grab
+              </button>
+              <button data-playground-tool="paint" aria-pressed="false"><kbd>P</kbd> Paint</button>
+              <button data-playground-tool="erase" aria-pressed="false"><kbd>E</kbd> Erase</button>
+              <button id="playground-toggle" class="playground-primary" disabled>Ⅱ Pause</button>
+              <button id="playground-keep">Keep path</button>
+              <span class="playground-toolbar-spacer"></span
+              ><button id="playground-undo" disabled>↶ Undo</button
+              ><button id="playground-redo" disabled>↷ Redo</button
+              ><button id="playground-reset">Reset</button>
+            </div>
+            <div class="playground-canvas-wrap">
+              <canvas id="playground-canvas"></canvas>
+              <div class="playground-canvas-key" aria-hidden="true">
+                <span>A</span> start <span>B</span> destination
+              </div>
+            </div>
+            <div class="playground-transport">
+              <button id="playground-fit">Fit view</button>
+              <p id="playground-status" role="status" aria-live="polite">
+                Grab a path point or endpoint and drag it.
+              </p>
+            </div>
+            <p id="playground-message" class="playground-message" role="alert" hidden></p>
+          </div>
+          <aside class="playground-controls" aria-label="Playground controls">
+            <section>
+              <h3>Start with a scene</h3>
+              <div class="playground-presets">
+                <button class="active" data-playground-preset="seeded">Seeded</button
+                ><button data-playground-preset="blank">Blank</button
+                ><button data-playground-preset="corridor">Corridor</button
+                ><button data-playground-preset="slalom">Slalom</button>
+              </div>
+            </section>
+            <section id="playground-brush-section" hidden>
+              <h3>Brush</h3>
+              <label for="playground-brush-radius"
+                >Radius <output id="playground-brush-radius-value">6%</output></label
+              ><input
+                id="playground-brush-radius"
+                type="range"
+                min="2"
+                max="15"
+                step="1"
+                value="6"
+              /><label for="playground-brush-strength"
+                >Travel cost <output id="playground-brush-strength-value">10×</output></label
+              ><input
+                id="playground-brush-strength"
+                type="range"
+                min="2"
+                max="100"
+                step="1"
+                value="10"
+              />
+              <p class="playground-help">
+                Radius is a percentage of the initial view width. Each completed gesture is one undo
+                step. Painted regions are smooth, finite costs, so the route may cross them when
+                that is cheaper.
+              </p>
+            </section>
+            <section>
+              <details>
+                <summary>Math &amp; solver</summary>
+                <label for="playground-resolution"
+                  >Interior points
+                  <select id="playground-resolution">
+                    <option>32</option>
+                    <option>64</option>
+                    <option>128</option>
+                  </select></label
+                ><label for="playground-method"
+                  >Method
+                  <select id="playground-method">
+                    <option value="descent">Energy descent</option>
+                    <option value="newton">Damped Newton</option>
+                  </select></label
+                >
+                <p class="playground-help">
+                  Point sampling stays fixed during a solve. Higher resolutions trade responsiveness
+                  for detail.
+                </p>
+                <label class="playground-check"
+                  ><span>Show sample points</span
+                  ><input id="playground-show-points" type="checkbox"
+                /></label>
+                <label class="playground-check"
+                  ><span>Show previous iteration</span
+                  ><input id="playground-show-previous" type="checkbox"
+                /></label>
+              </details>
+            </section>
+            <section class="playground-file-actions">
+              <details>
+                <summary>Scene file</summary>
+                <button id="playground-save">Save JSON</button
+                ><button id="playground-load">Load JSON</button
+                ><input id="playground-file" hidden type="file" accept="application/json,.json" />
+              </details>
+            </section>
+            <section>
+              <details>
+                <summary>Keyboard controls</summary>
+                <label for="playground-keyboard-target"
+                  >Target
+                  <select id="playground-keyboard-target">
+                    <option value="path:17">Path midpoint</option>
+                  </select></label
+                >
+                <p class="playground-help">
+                  Focus the canvas, then use arrow keys to move the target. Hold Shift for a larger
+                  step. Delete removes a selected painted stroke. G, P, and E change tools; Space
+                  pauses or resumes.
+                </p>
+                <button id="playground-focus-canvas">Focus canvas</button>
+              </details>
+            </section>
+          </aside>
+        </div>
+        <div class="playground-metrics" aria-label="Live route measurements">
+          <div>
+            <span>Travel cost</span><strong id="playground-travel-cost">—</strong
+            ><small>cost × distance</small>
+          </div>
+          <div>
+            <span>Iteration</span><strong id="playground-iteration">0</strong
+            ><small>current solve</small>
+          </div>
+          <div>
+            <span>Retained routes</span><strong id="playground-ghost-count">0 / 3</strong
+            ><small id="playground-ghosts">No retained routes yet.</small>
+          </div>
+        </div>
+      </section>
+      <section id="how-it-works" class="playground-explainer">
+        <div>
+          <p class="playground-kicker">WHAT THE SOLVER IS DOING</p>
+          <h2>A curve feels the field around it.</h2>
+        </div>
+        <div>
+          <p>
+            The reported travel cost adds local cost times distance along the drawn route. The
+            default method descends an auxiliary energy. In the continuous model, stationary curves
+            of this energy satisfy the path ODE; the sampled curve approximates it. Energy can fall
+            while travel cost briefly rises; they answer related but distinct numerical questions.
+          </p>
+          <div class="playground-formulas">
+            <span><var>J[q]</var> = ∫ c(q) ‖q′‖ dt</span
+            ><span><var>E[q]</var> = ∫ c(q)² ‖q′‖² dt</span>
+          </div>
+          <details>
+            <summary>Mathematical diagnostics</summary>
+            <dl class="playground-diagnostics">
+              <div>
+                <dt>Energy</dt>
+                <dd id="playground-energy">—</dd>
+              </div>
+              <div>
+                <dt>Free-gradient RMS</dt>
+                <dd id="playground-gradient">—</dd>
+              </div>
+              <div>
+                <dt>ODE residual RMS</dt>
+                <dd id="playground-residual">—</dd>
+              </div>
+            </dl>
+            <p>
+              Energy descent accepts steps that lower energy. Damped Newton accepts steps that
+              reduce the ODE residual and makes no energy-decrease promise. While you hold a point,
+              that vertex is fixed. The solver seeks stationarity only at the other vertices, so the
+              route behaves as two constrained pieces meeting at your waypoint. Release it to
+              optimize the whole route again. A small diagnostic is evidence of numerical
+              stationarity, not proof of a globally cheapest route.
+            </p>
+            <a href="./derivation.html">Read the full derivation →</a>
+          </details>
+        </div>
+      </section>
+    </main>
+    <footer class="playground-footer">
+      <p>
+        All computation stays on this device. Coordinates and costs use normalized illustrative
+        units.
+      </p>
+      <nav aria-label="Related pages">
+        <a href="./explorer.html">Gaussian explorer</a><a href="./terrain.html">Terrain lab</a>
+      </nav>
+    </footer>
+    <script type="module" src="/src/playground/app.ts"></script>
   </body>
 </html>

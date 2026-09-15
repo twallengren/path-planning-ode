@@ -12,6 +12,7 @@ import numpy as np
 import path_planning_ode
 from path_planning_ode import cost_field, presets, solve, weighted_distance
 from path_planning_ode.planners import plan
+from path_planning_ode.playground import build_playground_field
 from path_planning_ode.soft_walls import soften_walls
 from path_planning_ode.terrain import PlannerConfig, TerrainScenario
 from path_planning_ode.terrain_generators import (
@@ -60,6 +61,38 @@ preview["straight_cost"] = weighted_distance(np.array([scene.start, scene.end]),
 xx, yy = np.meshgrid(np.linspace(-4, 14, 90), np.linspace(-4, 14, 90))
 preview["field"] = cost_field(np.stack([xx, yy], axis=-1), scene.obstacles).ravel().tolist()
 (public / "preview.json").write_text(json.dumps(preview))
+
+# The homepage can draw its seeded field before Pyodide finishes loading. This
+# preview uses the same Python stroke builder and cost field as the live worker.
+playground_strokes = [
+    {"id": "seed-1", "points": [[0, 0.15]], "width": 0.85, "strength": 18},
+    {
+        "id": "seed-2",
+        "points": [[2.25, -2.25], [2.55, -1.8], [2.8, -1.25]],
+        "width": 0.5,
+        "strength": 8,
+    },
+]
+playground_field = build_playground_field(playground_strokes)
+playground_obstacles = tuple(
+    path_planning_ode.Obstacle(**item) for item in playground_field["obstacles"]
+)
+playground_xx, playground_yy = np.meshgrid(
+    np.linspace(-6, 6, 120), np.linspace(4, -4, 80)
+)
+(public / "playground-preview.json").write_text(
+    json.dumps(
+        {
+            "width": 120,
+            "height": 80,
+            "field": cost_field(
+                np.stack([playground_xx, playground_yy], axis=-1), playground_obstacles
+            )
+            .ravel()
+            .tolist(),
+        }
+    )
+)
 
 terrain_dir = public / "terrain"
 scenario_dir = terrain_dir / "scenarios"

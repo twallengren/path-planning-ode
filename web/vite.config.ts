@@ -53,6 +53,7 @@ export default defineConfig(({ command }) => ({
     rolldownOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        explorer: fileURLToPath(new URL('./explorer.html', import.meta.url)),
         derivation: fileURLToPath(new URL('./derivation.html', import.meta.url)),
         terrain: fileURLToPath(new URL('./terrain.html', import.meta.url)),
       },

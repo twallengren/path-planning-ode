@@ -73,6 +73,18 @@ __all__ = [
     "resample_route",
     "seed_bank",
     "soften_walls",
+    "BrushStroke",
+    "MAX_GAUSSIANS",
+    "PlaygroundMetrics",
+    "PlaygroundOptions",
+    "PlaygroundState",
+    "advance_playground",
+    "build_playground_field",
+    "evaluate_playground",
+    "initialize_playground",
+    "playground_energy_gradient",
+    "set_playground_pin",
+    "strokes_to_obstacles",
 ]
 
 _TERRAIN_EXPORTS = {
@@ -125,6 +137,21 @@ _TERRAIN_SEED_EXPORTS = {
 
 _SOFT_WALL_EXPORTS = {"soften_walls"}
 
+_PLAYGROUND_EXPORTS = {
+    "BrushStroke",
+    "MAX_GAUSSIANS",
+    "PlaygroundMetrics",
+    "PlaygroundOptions",
+    "PlaygroundState",
+    "advance_playground",
+    "build_playground_field",
+    "evaluate_playground",
+    "initialize_playground",
+    "playground_energy_gradient",
+    "set_playground_pin",
+    "strokes_to_obstacles",
+}
+
 
 def __getattr__(name: str):
     """Load the SciPy/Shapely terrain API only when a caller requests it."""
@@ -150,6 +177,10 @@ def __getattr__(name: str):
         return value
     if name in _SOFT_WALL_EXPORTS:
         value = getattr(import_module(".soft_walls", __name__), name)
+        globals()[name] = value
+        return value
+    if name in _PLAYGROUND_EXPORTS:
+        value = getattr(import_module(".playground", __name__), name)
         globals()[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

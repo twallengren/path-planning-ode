@@ -3,8 +3,8 @@ const eq = (tex: string) => katex.renderToString(tex, { throwOnError: false, dis
 export const content = /* HTML */ ` <header class="masthead">
     <a class="wordmark" href="#">PATH / PLANNING <span>an exploration</span></a>
     <nav aria-label="Main">
-      <a href="./derivation.html">Derivation</a><a href="./terrain.html">Terrain lab</a
-      ><a href="#playground">Playground</a
+      <a href="./">Playground</a><a href="./explorer.html" aria-current="page">Gaussian explorer</a
+      ><a href="./terrain.html">Terrain lab</a><a href="./derivation.html">Derivation</a
       ><a href="https://github.com/twallengren/path-planning-ode">Source ↗</a>
     </nav>
   </header>
