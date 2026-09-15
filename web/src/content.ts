@@ -3,7 +3,7 @@ const eq = (tex: string) => katex.renderToString(tex, { throwOnError: false, dis
 export const content = /* HTML */ ` <header class="masthead">
     <a class="wordmark" href="#">PATH / PLANNING <span>an exploration</span></a>
     <nav aria-label="Main">
-      <a href="#idea">The idea</a><a href="#playground">Playground</a
+      <a href="./derivation.html">Derivation</a><a href="#playground">Playground</a
       ><a href="https://github.com/twallengren/path-planning-ode">Source ↗</a>
     </nav>
   </header>
@@ -329,7 +329,12 @@ export const content = /* HTML */ ` <header class="masthead">
     <section id="mathematics" class="math-section">
       <p class="eyebrow">04 / UNDER THE SURFACE</p>
       <h2>From an energy to an equation.</h2>
-      <p class="math-intro">The geometry is the invitation. Here is the mathematics underneath.</p>
+      <p class="math-intro">
+        The geometry is the invitation. Here is the mathematics underneath.
+        <a href="./derivation.html" class="derivation-link"
+          >Read the full, step-by-step derivation →</a
+        >
+      </p>
       <details>
         <summary><span>01</span>The cost landscape</summary>
         <div class="detail-body">

@@ -689,6 +689,13 @@ summary {
   color: #7e8876;
   margin-bottom: 30px;
 }
+.derivation-link {
+  display: block;
+  margin-top: 12px;
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .math-section details {
   border-top: 1px solid var(--line);
 }

@@ -5,7 +5,7 @@ Move obstacles, compare three initial guesses, and watch Newton's method reshape
 a path through a landscape of soft costs.
 
 **[Explore the website](https://twallengren.github.io/path-planning-ode/)** ·
-**[Read the mathematics](docs/mathematics.md)** ·
+**[Read the full derivation](https://twallengren.github.io/path-planning-ode/derivation.html)** ·
 **[Open the notebook](examples/case_study.ipynb)**
 
 The same Python solver runs locally and in the browser through Pyodide. The site

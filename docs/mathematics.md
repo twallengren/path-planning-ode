@@ -1,5 +1,12 @@
 # Mathematics and numerical conventions
 
+For a readable, step-by-step explanation with typeset equations, see
+**[the full derivation page](https://twallengren.github.io/path-planning-ode/derivation.html)**
+([HTML source](../web/derivation.html)). It covers both the current equations and
+the intended cost-weighted-distance objective. This document is the compact
+reference for the **currently implemented** energy, which still uses c rather
+than c² as the coefficient of squared speed.
+
 ## Objective and cost
 
 Let q(t) = (x(t), y(t)), t ∈ [0, 1], with prescribed endpoints. Define
