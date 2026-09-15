@@ -36,6 +36,20 @@ export type TerrainFamily =
   'ridge_pass' | 'competing_corridors' | 'dead_ends' | 'correlated_roughness';
 export type TerrainLayer = 'elevation' | 'cost' | 'arrival';
 export type TerrainMethod = 'euler_lagrange' | 'slsqp' | 'fast_marching';
+export type TerrainGeometry = {
+  type: 'Polygon' | 'MultiPolygon';
+  coordinates: unknown;
+};
+export type SoftWallsMetadata = {
+  version: 1;
+  model: 'finite_smooth_high_cost';
+  base_scenario_hash: string;
+  multiplier: number;
+  transition_width_m: number;
+  transition_profile: 'outward_quintic_smootherstep';
+  geometry_geojson: TerrainGeometry[];
+  source_grid_shape: [number, number];
+};
 export type TerrainScenario = {
   version: 2;
   name: string;
@@ -46,7 +60,7 @@ export type TerrainScenario = {
   field_y_m: number[];
   elevation_m: number[][];
   log_slowness: number[][];
-  barriers_geojson: Array<{ type: 'Polygon' | 'MultiPolygon'; coordinates: unknown }>;
+  barriers_geojson: TerrainGeometry[];
   provenance: Record<string, unknown>;
   metadata: Record<string, unknown>;
 };
@@ -177,28 +191,33 @@ export function validateTerrainScenario(value: unknown): TerrainScenario {
     candidate[0] <= xmax &&
     candidate[1] >= ymin &&
     candidate[1] <= ymax;
-  for (const barrier of s.barriers_geojson) {
-    if (!object(barrier) || !['Polygon', 'MultiPolygon'].includes(String(barrier.type)))
-      throw new Error('Terrain barriers are invalid.');
-    const polygons = barrier.type === 'Polygon' ? [barrier.coordinates] : barrier.coordinates;
-    if (
-      !Array.isArray(polygons) ||
-      !polygons.length ||
-      polygons.some(
-        (polygon) =>
-          !Array.isArray(polygon) ||
-          !polygon.length ||
-          polygon.some(
-            (ring) =>
-              !Array.isArray(ring) ||
-              ring.length < 4 ||
-              ring.length > 20_000 ||
-              !ring.every(coordinate),
-          ),
+  const validateGeometries = (geometries: unknown) => {
+    if (!Array.isArray(geometries) || geometries.length > 100)
+      throw new Error('Terrain wall geometry is invalid.');
+    for (const barrier of geometries) {
+      if (!object(barrier) || !['Polygon', 'MultiPolygon'].includes(String(barrier.type)))
+        throw new Error('Terrain wall geometry is invalid.');
+      const polygons = barrier.type === 'Polygon' ? [barrier.coordinates] : barrier.coordinates;
+      if (
+        !Array.isArray(polygons) ||
+        !polygons.length ||
+        polygons.some(
+          (polygon) =>
+            !Array.isArray(polygon) ||
+            !polygon.length ||
+            polygon.some(
+              (ring) =>
+                !Array.isArray(ring) ||
+                ring.length < 4 ||
+                ring.length > 20_000 ||
+                !ring.every(coordinate),
+            ),
+        )
       )
-    )
-      throw new Error('Terrain barrier coordinates are invalid.');
-  }
+        throw new Error('Terrain wall coordinates are invalid.');
+    }
+  };
+  validateGeometries(s.barriers_geojson);
   if (
     !object(s.provenance) ||
     !object(s.metadata) ||
@@ -206,7 +225,32 @@ export function validateTerrainScenario(value: unknown): TerrainScenario {
     !finiteJson(s.metadata)
   )
     throw new Error('Terrain metadata is invalid.');
+  const soft = s.metadata.soft_walls;
+  if (soft !== undefined) {
+    if (
+      !object(soft) ||
+      soft.version !== 1 ||
+      soft.model !== 'finite_smooth_high_cost' ||
+      !digest(soft.base_scenario_hash) ||
+      !finite(soft.multiplier) ||
+      soft.multiplier <= 1 ||
+      !finite(soft.transition_width_m) ||
+      soft.transition_width_m <= 0 ||
+      soft.transition_profile !== 'outward_quintic_smootherstep' ||
+      !Array.isArray(soft.source_grid_shape) ||
+      soft.source_grid_shape.length !== 2 ||
+      soft.source_grid_shape[0] !== height ||
+      soft.source_grid_shape[1] !== width ||
+      s.barriers_geojson.length !== 0
+    )
+      throw new Error('Soft-wall metadata is invalid.');
+    validateGeometries(soft.geometry_geojson);
+  }
   return structuredClone(s);
+}
+
+export function softWallsMetadata(scenario: TerrainScenario): SoftWallsMetadata | null {
+  return (scenario.metadata.soft_walls as SoftWallsMetadata | undefined) || null;
 }
 
 export function validateTerrainConfig(value: unknown, browserLimits = true): TerrainConfig {

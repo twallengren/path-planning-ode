@@ -72,6 +72,7 @@ __all__ = [
     "make_seed",
     "resample_route",
     "seed_bank",
+    "soften_walls",
 ]
 
 _TERRAIN_EXPORTS = {
@@ -122,6 +123,8 @@ _TERRAIN_SEED_EXPORTS = {
     "seed_bank",
 }
 
+_SOFT_WALL_EXPORTS = {"soften_walls"}
+
 
 def __getattr__(name: str):
     """Load the SciPy/Shapely terrain API only when a caller requests it."""
@@ -143,6 +146,10 @@ def __getattr__(name: str):
         return value
     if name in _TERRAIN_SEED_EXPORTS:
         value = getattr(import_module(".terrain_seeds", __name__), name)
+        globals()[name] = value
+        return value
+    if name in _SOFT_WALL_EXPORTS:
+        value = getattr(import_module(".soft_walls", __name__), name)
         globals()[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

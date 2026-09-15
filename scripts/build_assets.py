@@ -12,6 +12,7 @@ import numpy as np
 import path_planning_ode
 from path_planning_ode import cost_field, presets, solve, weighted_distance
 from path_planning_ode.planners import plan
+from path_planning_ode.soft_walls import soften_walls
 from path_planning_ode.terrain import PlannerConfig, TerrainScenario
 from path_planning_ode.terrain_generators import (
     FAMILY_NAMES,
@@ -64,12 +65,14 @@ terrain_dir = public / "terrain"
 scenario_dir = terrain_dir / "scenarios"
 scenario_dir.mkdir(parents=True, exist_ok=True)
 terrain_scenarios = {
-    family: synthetic_terrain(family, seed=0, contrast=1.0, barriers=True)
+    family: soften_walls(synthetic_terrain(family, seed=0, contrast=1.0, barriers=True))
     for family in FAMILY_NAMES
 }
 for family, terrain_scenario in terrain_scenarios.items():
     (scenario_dir / f"{family}-0.json").write_text(json.dumps(terrain_scenario.to_dict()))
-(scenario_dir / "mount_tamalpais.json").write_text(json.dumps(mount_tamalpais_terrain().to_dict()))
+(scenario_dir / "mount_tamalpais.json").write_text(
+    json.dumps(soften_walls(mount_tamalpais_terrain(barriers=True)).to_dict())
+)
 
 # The initial screen is a real planner result produced by the same public
 # dispatcher as native and browser runs. Missing planner code is a build error.

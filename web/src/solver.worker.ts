@@ -17,6 +17,8 @@ context.onmessage = async ({
   seed?: number;
   contrast?: number;
   barriers?: boolean;
+  wallMode?: 'soft' | 'hard';
+  wallMultiplier?: number;
   configs?: TerrainConfig[];
 }>) => {
   const { id, action, scene, bounds } = data;
@@ -59,7 +61,7 @@ context.onmessage = async ({
         context.postMessage({ progress: 'Loading SciPy and geometry tools…' });
         await runtime.loadPackage(['scipy', 'shapely']);
         runtime.runPython(
-          'import json, numpy as np\nfrom path_planning_ode.terrain import TerrainScenario, PlannerConfig\nfrom path_planning_ode.terrain_generators import synthetic_terrain, mount_tamalpais_terrain\nfrom path_planning_ode.planners import plan, scene_to_terrain_scenario',
+          'import json, numpy as np\nfrom path_planning_ode.terrain import TerrainScenario, PlannerConfig\nfrom path_planning_ode.terrain_generators import synthetic_terrain, mount_tamalpais_terrain\nfrom path_planning_ode.soft_walls import soften_walls\nfrom path_planning_ode.planners import plan, scene_to_terrain_scenario',
         );
         terrainReady = true;
       } else {
@@ -93,9 +95,14 @@ json.dumps({'states': {k: v.to_dict() for k, v in states.items()}}, allow_nan=Fa
       runtime.globals.set('terrain_seed', data.seed);
       runtime.globals.set('terrain_contrast', data.contrast);
       runtime.globals.set('terrain_barriers', data.barriers);
-      const result = runtime.runPython(
-        "json.dumps((mount_tamalpais_terrain() if family_name == 'mount_tamalpais' else synthetic_terrain(family_name, seed=terrain_seed, contrast=terrain_contrast, barriers=terrain_barriers)).to_dict(), allow_nan=False)",
-      );
+      runtime.globals.set('terrain_wall_mode', data.wallMode);
+      runtime.globals.set('terrain_wall_multiplier', data.wallMultiplier);
+      const result = runtime.runPython(`
+generated_terrain = mount_tamalpais_terrain(contrast=terrain_contrast, barriers=terrain_barriers) if family_name == 'mount_tamalpais' else synthetic_terrain(family_name, seed=terrain_seed, contrast=terrain_contrast, barriers=terrain_barriers)
+if terrain_wall_mode == 'soft':
+    generated_terrain = soften_walls(generated_terrain, multiplier=terrain_wall_multiplier)
+json.dumps(generated_terrain.to_dict(), allow_nan=False)
+`);
       context.postMessage({ id, result: JSON.parse(result) });
     } else if (action === 'terrainSolve') {
       if (!terrainReady) throw new Error('Terrain runtime is not ready.');

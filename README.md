@@ -179,8 +179,12 @@ route, and labels the cheapest candidate **lowest cost shown**, not a global opt
 See [the mathematical conventions](docs/mathematics.md).
 
 The v2 terrain pipeline uses shared SI-unit source fields, positive
-log-slowness interpolation, GeoJSON impassable barriers, and an independent
-route evaluator. See the [terrain tutorial](docs/terrain-study.md) for the
+log-slowness interpolation, and an independent route evaluator. The live
+laboratory defaults to finite, smoothly transitioned high-cost walls at a
+nominal 100× strength, so every planner may cross a wall and pays its field
+cost. A selector retains the original impassable-barrier model for replay and
+comparison. The checked-in publication remains explicitly the historical
+hard-barrier study. See the [terrain tutorial](docs/terrain-study.md) for the
 Python API, CLI protocol, browser demo, Mount Tamalpais provenance, and limits
 on interpreting numerical references.
 

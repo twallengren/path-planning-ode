@@ -5,6 +5,7 @@ import {
   validateTerrainConfig,
   validateTerrainResult,
   validateTerrainScenario,
+  softWallsMetadata,
   type Scene,
   type TerrainBundle,
   type TerrainConfig,
@@ -146,6 +147,15 @@ function fieldForLayer(): number[][] {
   if (layer === 'cost') return scenario.log_slowness.map((row) => row.map(Math.exp));
   return scenario.elevation_m;
 }
+function displayedModelLabel() {
+  const soft = softWallsMetadata(scenario);
+  if (soft && soft.geometry_geojson.length)
+    return `finite high-cost walls · ${soft.multiplier.toFixed(0)}× nominal strength · ${soft.transition_width_m.toFixed(1)} m smooth transition`;
+  if (soft) return 'finite high-cost wall model · no wall regions';
+  return scenario.barriers_geojson.length
+    ? 'hard barriers · impassable geometry'
+    : 'open field · no wall geometry';
+}
 function drawMap() {
   if (!scenario) return;
   const canvas = $<HTMLCanvasElement>('terrain-map'),
@@ -185,10 +195,13 @@ function drawMap() {
   ctx.beginPath();
   ctx.rect(pad, pad, pw, ph);
   ctx.clip();
-  ctx.fillStyle = 'rgba(37,43,40,.83)';
-  ctx.strokeStyle = '#fff';
+  const soft = softWallsMetadata(scenario);
+  const wallGeometry = soft?.geometry_geojson || scenario.barriers_geojson;
+  ctx.fillStyle = soft ? 'rgba(215,110,61,.25)' : 'rgba(37,43,40,.83)';
+  ctx.strokeStyle = soft ? 'rgba(154,66,35,.9)' : '#fff';
   ctx.lineWidth = ratio;
-  for (const geometry of scenario.barriers_geojson) {
+  ctx.setLineDash(soft ? [4 * ratio, 3 * ratio] : []);
+  for (const geometry of wallGeometry) {
     const polygons: any[] =
       geometry.type === 'Polygon' ? [geometry.coordinates] : (geometry.coordinates as any[]);
     for (const polygon of polygons)
@@ -202,6 +215,7 @@ function drawMap() {
         ctx.stroke();
       }
   }
+  ctx.setLineDash([]);
   results.forEach((result, index) => {
     if (!result.route_m) return;
     ctx.beginPath();
@@ -342,9 +356,12 @@ function renderResults() {
 function renderTerrainMeta() {
   if (!scenario) return;
   const observed = scenario.metadata.kind === 'observed_elevation_with_illustrative_cost_model';
-  $('terrain-meta').textContent = observed
+  $('model-indicator').textContent = `Displayed model · ${displayedModelLabel()}`;
+  const fieldDescription = observed
     ? `${scenario.provenance.attribution || 'Bundled observed elevation.'} Projection: ${scenario.provenance.local_projection || 'local metric coordinates'}. Model: ${scenario.metadata.model_assumptions || scenario.metadata.cost_model}. Offline packaged data; no live elevation request.`
     : `Synthetic benchmark · ${scenario.metadata.cost_model || 'static isotropic positive travel cost'} · source field ${scenario.field_x_m.length} × ${scenario.field_y_m.length}.`;
+  $('terrain-meta').textContent =
+    `${fieldDescription} Displayed wall model: ${displayedModelLabel()}.`;
 }
 function drawProfile(canvas: HTMLCanvasElement, key: 'elevation_m' | 'accumulated_cost_s') {
   const { ctx, w, h, ratio } = resize(canvas);
@@ -447,12 +464,21 @@ function restoreConfigControls(imported: TerrainConfig[]) {
   );
 }
 async function generateScenario() {
+  const wallMultiplier = $<HTMLInputElement>('wall-strength').valueAsNumber;
+  const softMode = $<HTMLSelectElement>('wall-model').value === 'soft';
+  if (
+    softMode &&
+    (!Number.isFinite(wallMultiplier) || wallMultiplier <= 1 || wallMultiplier > 1_000_000)
+  )
+    throw new Error('Wall strength must be greater than 1× and no more than 1,000,000×.');
   scenario = validateTerrainScenario(
     await request('terrainGenerate', {
       family: $<HTMLSelectElement>('family').value,
       seed: $<HTMLInputElement>('seed').valueAsNumber,
       contrast: $<HTMLInputElement>('contrast').valueAsNumber,
       barriers: $<HTMLInputElement>('barriers').checked,
+      wallMode: softMode ? 'soft' : 'hard',
+      wallMultiplier,
     }),
   );
   results = [];
@@ -490,7 +516,7 @@ async function run() {
     recordedComparison = null;
     recordedConfig = null;
     recordedFailure = null;
-    status('Comparison complete · results independently evaluated');
+    status(`Comparison complete · ${displayedModelLabel()} · results independently evaluated`);
     renderResults();
   } catch (error) {
     if (!/Cancelled|restarted|Settings changed/.test(errorText(error))) {
@@ -536,15 +562,42 @@ function settingsChanged(changesScenario: boolean) {
 }
 function syncFamilyControls() {
   const observed = $<HTMLSelectElement>('family').value === 'mount_tamalpais';
-  for (const id of ['seed', 'contrast', 'barriers']) $<HTMLInputElement>(id).disabled = observed;
+  $<HTMLInputElement>('seed').disabled = observed;
   if (observed)
     $('terrain-meta').textContent =
       'Mount Tamalpais elevation: Mapzen Terrain Tiles; USGS 3DEP and GMTED2010/SRTM. Local WGS84 metric projection; travel cost is an illustrative static slope model. Bundled offline.';
 }
-for (const id of ['family', 'seed', 'barriers'])
+function syncWallControls() {
+  const soft = $<HTMLSelectElement>('wall-model').value === 'soft';
+  $<HTMLInputElement>('wall-strength').disabled = !soft;
+  $('wall-strength-label').classList.toggle('disabled-control', !soft);
+  $('barriers-label').textContent = soft
+    ? 'Include high-cost wall regions'
+    : 'Include impassable barriers';
+  $('wall-model-help').textContent = soft
+    ? 'Crossings are allowed and charged through the shared cost field.'
+    : 'Barrier contact is forbidden and reported as a collision.';
+  const barrierSeed = document.querySelector<HTMLInputElement>('[data-init="barrier"]');
+  if (barrierSeed) {
+    const wasSelected = barrierSeed.checked;
+    barrierSeed.disabled = soft;
+    if (soft) barrierSeed.checked = false;
+    barrierSeed.closest('label')?.classList.toggle('disabled-control', soft);
+    if (soft && wasSelected && !document.querySelector<HTMLInputElement>('[data-init]:checked'))
+      document.querySelector<HTMLInputElement>('[data-init="straight"]')!.checked = true;
+  }
+}
+function restoreModelControlsFromScenario() {
+  const soft = softWallsMetadata(scenario);
+  $<HTMLSelectElement>('wall-model').value = soft ? 'soft' : 'hard';
+  if (soft) $<HTMLInputElement>('wall-strength').value = String(soft.multiplier);
+  syncWallControls();
+}
+for (const id of ['family', 'seed', 'barriers', 'wall-model', 'wall-strength'])
   $(id).onchange = () => {
     settingsChanged(true);
     if (id === 'family') syncFamilyControls();
+    if (id === 'wall-model') syncWallControls();
   };
 for (const element of document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
   '[data-method], [data-init], #run-reference, #local-n, #reference-n, #include-arrival',
@@ -594,6 +647,7 @@ $('file').onchange = async () => {
       recordedComparison = null;
       recordedConfig = null;
       recordedFailure = null;
+      restoreModelControlsFromScenario();
     } catch (error) {
       if (errorText(error) !== 'VERSION_1') throw error;
       await boot();
@@ -606,6 +660,7 @@ $('file').onchange = async () => {
       recordedComparison = null;
       recordedConfig = null;
       recordedFailure = null;
+      restoreModelControlsFromScenario();
     }
     controlsDirty = false;
     arrival = null;
@@ -617,8 +672,8 @@ $('file').onchange = async () => {
     );
     status(
       results.length
-        ? 'Imported cached results · unverified until rerun'
-        : 'Imported scenario · ready to run',
+        ? `Imported cached results · ${displayedModelLabel()} · unverified until rerun`
+        : `Imported scenario · ${displayedModelLabel()} · ready to run`,
     );
   } catch (error) {
     message(errorText(error));
@@ -765,7 +820,7 @@ async function loadStudyRun(run: any) {
     controlsDirty = false;
     renderResults();
     status(
-      `Recorded native run · ${run.case_id || 'study case'}${recordedConfig ? ` · saved ${savedConfigText(recordedConfig)}; live controls unchanged` : ''}`,
+      `Recorded native run · ${displayedModelLabel()} · ${run.case_id || 'study case'}${recordedConfig ? ` · saved ${savedConfigText(recordedConfig)}; live controls unchanged` : ''}`,
     );
     $('comparison-title').scrollIntoView({ behavior: 'smooth' });
   } catch (error) {
@@ -785,8 +840,9 @@ async function start() {
     recordedConfig = null;
     recordedFailure = null;
     renderResults();
-    status('Precomputed validated preview · Python loads when you run');
+    status(`Precomputed validated preview · ${displayedModelLabel()} · Python loads when you run`);
     syncFamilyControls();
+    syncWallControls();
   } catch (error) {
     message(errorText(error));
   }

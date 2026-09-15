@@ -155,6 +155,39 @@ footer {
   align-items: center;
   margin-bottom: 15px;
 }
+.model-indicator {
+  display: inline-block;
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #f4f5ef;
+  color: var(--ink);
+  padding: 6px 8px;
+  font:
+    500 9px/1.35 'IBM Plex Mono',
+    monospace;
+}
+.input-with-unit {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.input-with-unit input {
+  max-width: 100px;
+}
+.disabled-control {
+  opacity: 0.55;
+}
+.control-help {
+  color: var(--muted);
+  margin: -9px 0 15px;
+  font-size: 10px;
+  line-height: 1.45;
+}
 .segmented {
   display: flex;
   border: 1px solid var(--line);

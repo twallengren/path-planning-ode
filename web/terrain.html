@@ -49,6 +49,7 @@
               </div>
               <label class="toggle"><input id="show-3d" type="checkbox" /> 3D elevation</label>
             </div>
+            <p id="model-indicator" class="model-indicator">Displayed model · loading…</p>
             <div class="map-wrap">
               <canvas
                 id="terrain-map"
@@ -83,8 +84,26 @@
               /></label>
             </div>
             <p id="terrain-meta" class="terrain-meta"></p>
+            <label
+              >Wall model<select id="wall-model">
+                <option value="soft" selected>High-cost walls</option>
+                <option value="hard">Hard barriers</option>
+              </select></label
+            >
+            <p id="wall-model-help" class="control-help">
+              Crossings are allowed and charged through the shared cost field.
+            </p>
+            <label id="wall-strength-label"
+              >Nominal wall strength
+              <span class="input-with-unit"
+                ><input id="wall-strength" type="number" min="2" max="1000000" value="100" /> ×
+                surrounding cost</span
+              ></label
+            >
             <label class="check"
-              ><input id="barriers" type="checkbox" checked /> Include hard barriers</label
+              ><input id="barriers" type="checkbox" checked /><span id="barriers-label"
+                >Include high-cost wall regions</span
+              ></label
             >
             <fieldset>
               <legend>Local methods</legend>
@@ -172,8 +191,11 @@
       <section id="results" class="results-section">
         <div class="section-copy">
           <p class="kicker">RECORDED STUDY</p>
-          <h2>Browse the evidence.</h2>
-          <p>Published native runs appear here when the study artifact is bundled with the site.</p>
+          <h2>Published hard-barrier study.</h2>
+          <p>
+            These historical native runs use impassable barriers. Their recorded model remains
+            unchanged when the live laboratory uses finite high-cost walls.
+          </p>
         </div>
         <div id="study-status">Loading recorded study…</div>
         <nav id="study-artifacts" class="study-artifacts" aria-label="Study downloads"></nav>

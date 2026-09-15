@@ -15,6 +15,33 @@ function fixture(name = 'uniform') {
   );
 }
 
+function softWallFixture() {
+  return execFileSync(
+    python,
+    [
+      '-c',
+      'import json; from path_planning_ode.soft_walls import soften_walls; from path_planning_ode.terrain_generators import obstacle_detour_fixture; print(json.dumps(soften_walls(obstacle_detour_fixture()).to_dict()))',
+    ],
+    { encoding: 'utf8' },
+  );
+}
+
+async function captureTerrainResults(page: Page) {
+  await page.addInitScript(() => {
+    const OriginalWorker = window.Worker;
+    (window as any).terrainResults = [];
+    window.Worker = class extends OriginalWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.addEventListener('message', ({ data }) => {
+          if (Array.isArray(data.result) && data.result[0]?.version === 2)
+            (window as any).terrainResults = data.result;
+        });
+      }
+    };
+  });
+}
+
 async function openTerrain(page: Page) {
   await page.goto('./terrain.html');
   await expect(page.locator('#runtime')).toContainText('Precomputed validated preview');
@@ -112,6 +139,98 @@ test('terrain preview, native parity, profiles, layers, and v2 export', async ({
   expect(errors).toEqual([]);
 });
 
+test('soft walls are the live default and share finite costs across browser planners', async ({
+  page,
+}) => {
+  await captureTerrainResults(page);
+  await openTerrain(page);
+  await expect(page.locator('#wall-model')).toHaveValue('soft');
+  await expect(page.locator('#wall-strength')).toHaveValue('100');
+  await expect(page.locator('#model-indicator')).toContainText(
+    'finite high-cost walls · 100× nominal strength',
+  );
+  await expect(page.locator('#wall-model-help')).toHaveText(
+    'Crossings are allowed and charged through the shared cost field.',
+  );
+  await expect(page.locator('[data-init="barrier"]')).toBeDisabled();
+
+  await page.locator('#file').setInputFiles({
+    name: 'soft-walls-v2.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(softWallFixture()),
+  });
+  await page.locator('[data-init="arc_left"]').uncheck();
+  await page.locator('[data-init="arc_right"]').uncheck();
+  await page.locator('[data-method="euler_lagrange"]').check();
+  await page.locator('#run').click();
+  await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
+  const browser = await page.evaluate(() => (window as any).terrainResults);
+  const native = JSON.parse(
+    execFileSync(
+      python,
+      [
+        '-c',
+        "import json; from path_planning_ode.soft_walls import soften_walls; from path_planning_ode.terrain_generators import obstacle_detour_fixture; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; s=soften_walls(obstacle_detour_fixture()); cs=[PlannerConfig(method=m, initialization=('fast_marching' if m=='fast_marching' else 'straight'), interior_points=32, reference_grid_size=129) for m in ('slsqp','euler_lagrange','fast_marching')]; print(json.dumps([plan(s,c).to_dict() for c in cs]))",
+      ],
+      { encoding: 'utf8' },
+    ),
+  );
+  expect(browser).toHaveLength(3);
+  for (let i = 0; i < native.length; i++) {
+    expect(browser[i].feasible).toBe(native[i].feasible);
+    expect(browser[i].evaluation.violations).not.toContain('barrier_collision');
+    expect(browser[i].evaluated_cost_s).toBeCloseTo(native[i].evaluated_cost_s, 6);
+  }
+
+  await page.locator('#wall-model').selectOption('hard');
+  await expect(page.locator('#barriers-label')).toHaveText('Include impassable barriers');
+  await expect(page.locator('[data-init="barrier"]')).toBeEnabled();
+  await expect(page.locator('#model-indicator')).toContainText('finite high-cost walls');
+  await page.locator('[data-method="slsqp"]').uncheck();
+  await page.locator('[data-method="euler_lagrange"]').uncheck();
+  await page.locator('#run').click();
+  await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
+  await expect(page.locator('#model-indicator')).toContainText('hard barriers · impassable');
+
+  await page.locator('#wall-model').selectOption('soft');
+  await page.locator('#wall-strength').fill('25');
+  await page.locator('#run').click();
+  await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
+  await expect(page.locator('#model-indicator')).toContainText('25× nominal strength');
+  await page.locator('summary').filter({ hasText: 'Import & export' }).click();
+  const download = page.waitForEvent('download');
+  await page.locator('#export').click();
+  const downloaded = await download;
+  const exported = JSON.parse(readFileSync((await downloaded.path())!, 'utf8'));
+  expect(exported.scenario.barriers_geojson).toEqual([]);
+  expect(exported.scenario.metadata.soft_walls.multiplier).toBe(25);
+  expect(exported.scenario.metadata.soft_walls.geometry_geojson.length).toBeGreaterThan(0);
+  expect(exported.results).toHaveLength(1);
+  expect(exported.results[0].method).toBe('fast_marching');
+
+  const nativeGenerated = JSON.parse(
+    execFileSync(
+      python,
+      [
+        '-c',
+        "import json; from path_planning_ode.soft_walls import soften_walls; from path_planning_ode.terrain_generators import synthetic_terrain; print(json.dumps(soften_walls(synthetic_terrain('ridge_pass', seed=0, contrast=1.0, barriers=True), multiplier=25).to_dict()))",
+      ],
+      { encoding: 'utf8' },
+    ),
+  );
+  for (const [row, column] of [
+    [0, 0],
+    [16, 32],
+    [32, 32],
+    [48, 20],
+    [64, 64],
+  ])
+    expect(exported.scenario.log_slowness[row][column]).toBeCloseTo(
+      nativeGenerated.log_slowness[row][column],
+      12,
+    );
+});
+
 test('lazy terrain dependency failure keeps preview and retry recovers', async ({ page }) => {
   await page.route('**/runtime/scipy-*.whl', (route) => route.abort());
   await openTerrain(page);
@@ -163,11 +282,13 @@ test('import stops active work and keeps imported cached results unverified', as
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(bundle)),
   });
-  await expect(page.locator('#runtime')).toContainText('Imported cached results · unverified');
+  await expect(page.locator('#runtime')).toContainText('Imported cached results');
+  await expect(page.locator('#runtime')).toContainText('unverified until rerun');
   await expect(page.locator('#cards')).toContainText('cached · unverified');
   await expect(page.locator('#cards .result-card')).toHaveCount(1);
   await page.waitForTimeout(1_000);
-  await expect(page.locator('#runtime')).toContainText('Imported cached results · unverified');
+  await expect(page.locator('#runtime')).toContainText('Imported cached results');
+  await expect(page.locator('#runtime')).toContainText('unverified until rerun');
   await expect(page.locator('#cards .result-card')).toHaveCount(1);
 });
 
@@ -259,6 +380,9 @@ test('published study artifacts and a real recorded run load into the explorer',
   await page.locator('.study-runs').first().locator('summary').click();
   await page.locator('.study-load').first().click();
   await expect(page.locator('#runtime')).toContainText('Recorded native run');
+  await expect(page.locator('#runtime')).toContainText('hard barriers · impassable');
+  await expect(page.locator('#model-indicator')).toContainText('hard barriers · impassable');
+  await expect(page.locator('#wall-model')).toHaveValue('soft');
   await expect(page.locator('#cards .result-card')).toHaveCount(1);
   await expect(page.locator('#cards')).toContainText('evaluated cost');
   await expect(page.locator('#cards')).toContainText(/unresolved|vs \d+ grid/);

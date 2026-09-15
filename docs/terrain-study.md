@@ -3,8 +3,18 @@
 The version 2 terrain API describes a fixed, shared problem in SI units. A
 `TerrainScenario` contains metre coordinates, observed or synthetic elevation,
 the natural log of positive slowness (seconds per horizontal metre), and
-separate GeoJSON barriers. Every planner receives the same scenario source
-grid; only its route discretisation and numerical method vary.
+separate GeoJSON barriers for the original impassable-wall model. Every planner
+receives the same scenario source grid; only its route discretisation and
+numerical method vary.
+
+The live browser laboratory defaults to **finite high-cost walls** with a
+nominal 100× strength. It applies `soften_walls`, which adds a compact smooth
+penalty to log-slowness, retains the source geometry in metadata for display,
+and clears `barriers_geojson`. All planners and the independent evaluator then
+see the same transformed cost field; crossing is feasible and contributes to
+route cost. The selector can restore hard barriers for comparison. The
+checked-in 2,816-run publication predates this live default and remains an
+immutable **historical hard-barrier study**.
 
 ## A first experiment
 
@@ -23,6 +33,20 @@ result = plan(scenario, PlannerConfig(method="slsqp", initialization="straight")
 evaluation = evaluate_route(scenario, result.route_m)
 print(evaluation.feasible, evaluation.cost_s, evaluation.length_m)
 ```
+
+To use finite walls in Python, transform a scenario once before planning:
+
+```python
+from path_planning_ode import soften_walls
+from path_planning_ode.terrain_generators import synthetic_terrain
+
+scenario = soften_walls(synthetic_terrain("ridge_pass", seed=0), multiplier=100)
+```
+
+The multiplier is nominal at source-grid nodes on or inside the retained wall
+geometry. The default physical transition width is twice the largest source
+cell diagonal and uses an outward quintic smootherstep. Bicubic interpolation
+can overshoot, so the multiplier is not a continuous upper bound.
 
 `plan` returns solver diagnostics and a candidate route. `evaluate_route` is a
 separate end-to-end check: it integrates the interpolated field along every
@@ -145,7 +169,7 @@ The stationary equation used in the implementation is
 
 \[
 q''=\frac{\lVert q'\rVert^2\nabla c
-       -2q'(\nabla c\mathbin{\cdot}q')}{c}.
+-2q'(\nabla c\mathbin{\cdot}q')}{c}.
 \]
 
 The code applies centred differences to this equation and a sparse analytic
