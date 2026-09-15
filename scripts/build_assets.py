@@ -6,14 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 from shutil import copy2, copytree, rmtree
-from urllib.parse import parse_qs, urlparse
 
 import numpy as np
 
 import path_planning_ode
 from path_planning_ode import cost_field, presets, solve, weighted_distance
 from path_planning_ode.planners import plan
-from path_planning_ode.terrain import PlannerConfig
+from path_planning_ode.terrain import PlannerConfig, TerrainScenario
 from path_planning_ode.terrain_generators import (
     FAMILY_NAMES,
     mount_tamalpais_terrain,
@@ -90,8 +89,8 @@ preview_results = [plan(preview_scenario, preview_config)]
     )
 )
 
-# Copy the checked-in published study and build exact scenario assets for each
-# recorded case so a published row can be loaded back into the live explorer.
+# Copy the checked-in published study, including the exact frozen scenario
+# assets used by its records, so every row can load back into the live explorer.
 published_dir = root / "experiments" / "published"
 published_index = published_dir / "index.json"
 if published_index.is_file():
@@ -122,24 +121,16 @@ if published_index.is_file():
         reference = run.get("scenario_ref")
         if not scenario_hash or not reference or scenario_hash in scenario_hashes:
             continue
-        parsed = urlparse(reference)
-        parts = parsed.path.split("/")
-        if len(parts) != 3 or parts[0] != "synthetic":
-            continue
-        query = parse_qs(parsed.query)
-        recorded_scenario = synthetic_terrain(
-            parts[1],
-            seed=int(parts[2]),
-            contrast=float(query.get("contrast", [1.0])[0]),
-            barriers=query.get("barriers", ["true"])[0].lower() == "true",
-        )
-        if recorded_scenario.scenario_hash != scenario_hash:
-            raise RuntimeError(f"Published scenario hash mismatch for {reference}.")
-        (study_scenarios / f"{scenario_hash}.json.gz").write_bytes(
-            gzip.compress(
-                json.dumps(recorded_scenario.to_dict(), separators=(",", ":")).encode(),
-                mtime=0,
+        scenario_asset = study_scenarios / f"{scenario_hash}.json.gz"
+        if not scenario_asset.is_file():
+            raise RuntimeError(f"Missing frozen scenario asset for {reference}.")
+        try:
+            recorded_scenario = TerrainScenario.from_dict(
+                json.loads(gzip.decompress(scenario_asset.read_bytes()))
             )
-        )
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
+            raise RuntimeError(f"Invalid frozen scenario asset for {reference}.") from error
+        if recorded_scenario.scenario_hash != scenario_hash:
+            raise RuntimeError(f"Frozen scenario hash mismatch for {reference}.")
         scenario_hashes.add(scenario_hash)
     (study_dir / "assets.json").write_text(json.dumps(sorted(assets)))
