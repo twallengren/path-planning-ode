@@ -1,6 +1,8 @@
 """
 Autonomous Path Planning ODE
 
+Historical 2019 implementation. For corrected numerics use path_planning_ode.
+
 This module solves the ODE derived at
 https://www.youtube.com/watch?v=fNBrIngCJp8&t=9s
 
@@ -606,4 +608,3 @@ if __name__ == '__main__':
     pp = PathPlanningODE()
     pp.create_obstacles()
     pp.animate_solver()
-

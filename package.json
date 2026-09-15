@@ -1,0 +1,26 @@
+{
+  "name": "path-planning-ode-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets": "node scripts/prepare-web.mjs",
+    "dev": "npm run assets && vite web --host 127.0.0.1",
+    "build": "npm run assets && tsc --noEmit && vite build web",
+    "preview": "vite preview web --host 127.0.0.1",
+    "test": "playwright test",
+    "format": "prettier --write web/src web/tests web/index.html web/vite.config.ts scripts/prepare-web.mjs playwright.config.ts",
+    "format:check": "prettier --check web/src web/tests web/index.html web/vite.config.ts scripts/prepare-web.mjs playwright.config.ts"
+  },
+  "dependencies": {
+    "katex": "^0.16.22",
+    "pyodide": "314.0.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/katex": "^0.16.7",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "vite": "8.3.0"
+  }
+}
