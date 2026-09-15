@@ -56,6 +56,21 @@ Use `--resume` only to continue an interrupted archive in the same output
 directory. The checked-in `experiments/published` archive is a publication
 artifact, not a resume target for a fresh reproduction.
 
+Synthetic fields regenerated on different math libraries can differ in their
+last floating-point bits. The exact problems used by the published records are
+therefore bundled as deterministic gzip files in
+`experiments/published/scenarios`. Load one without regenerating its field:
+
+```python
+import gzip
+import json
+
+from path_planning_ode.terrain import TerrainScenario
+
+with gzip.open("experiments/published/scenarios/<scenario-hash>.json.gz", "rt") as stream:
+    scenario = TerrainScenario.from_dict(json.load(stream))
+```
+
 The static browser demo is available at
 [`web/terrain.html`](../web/terrain.html). It uses the same pinned Python
 runtime through Pyodide and loads SciPy/Shapely lazily. Build and serve it with
