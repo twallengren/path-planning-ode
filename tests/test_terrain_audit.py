@@ -23,7 +23,7 @@ from path_planning_ode.local_planners import (
 )
 from path_planning_ode.terrain import PlannerConfig
 from path_planning_ode.terrain_generators import (
-    competing_corridors_terrain,
+    correlated_roughness_terrain,
     layered_refraction_fixture,
     obstacle_detour_fixture,
     uniform_terrain_fixture,
@@ -598,12 +598,12 @@ def _independent_gauss_cost(field, route, order):
 
 
 def test_slsqp_success_has_independent_constraints_stationarity_and_feasibility():
-    scenario = competing_corridors_terrain(seed=2, barriers=False)
+    scenario = correlated_roughness_terrain(seed=1, barriers=False)
     config = PlannerConfig(
         method="slsqp",
         initialization="straight",
         interior_points=8,
-        tolerance=1e-7,
+        tolerance=1e-9,
         max_iterations=200,
         time_limit_s=10.0,
         profile_samples=2,
