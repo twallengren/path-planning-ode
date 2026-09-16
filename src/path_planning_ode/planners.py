@@ -84,6 +84,10 @@ def plan(scenario: TerrainScenario | Scene, config: PlannerConfig) -> PlannerRes
         result = solve_euler_lagrange(scenario, config, deadline=deadline)
     elif config.method == "slsqp":
         result = solve_slsqp(scenario, config, deadline=deadline)
+    elif config.method == "energy_descent":
+        from .terrain_energy import solve_energy_descent
+
+        result = solve_energy_descent(scenario, config, deadline=deadline)
     else:
         from .fast_marching import solve_fast_marching
 

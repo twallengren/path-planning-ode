@@ -22,7 +22,7 @@ const labels: Record<string, string> = {
   arc_left: 'Local · left arc',
   arc_right: 'Local · right arc',
   barrier: 'Local · barrier only',
-  fast_marching: 'Local · FMM warm',
+  fast_marching: 'Global FMM seed → local refinement',
 };
 let scenario: TerrainScenario;
 let results: TerrainResult[] = [];
@@ -293,7 +293,12 @@ function draw3d() {
 }
 function resultName(result: TerrainResult) {
   if (result.method === 'fast_marching') return 'Fast marching reference';
-  const method = result.method === 'slsqp' ? 'SLSQP' : 'Euler–Lagrange';
+  const method =
+    result.method === 'energy_descent'
+      ? 'Energy descent'
+      : result.method === 'slsqp'
+        ? 'SLSQP'
+        : 'Euler–Lagrange Newton';
   return `${method} · ${(labels[result.initialization] || result.initialization).replace('Local · ', '')}`;
 }
 function savedConfigText(config: TerrainConfig) {
@@ -336,7 +341,17 @@ function renderResults() {
           const violations = r.evaluation?.violations.length
             ? ` · violations: ${escapeHtml(r.evaluation.violations.join(', '))}`
             : '';
-          return `<article class="result-card"><h3><span style="color:${colors[i % colors.length]}">${resultName(r)}</span><span class="pill ${r.feasible ? '' : 'bad'}">${r.feasible ? 'feasible' : 'infeasible'}</span>${source}</h3><p class="cost-number">${r.evaluated_cost_s === null ? '—' : r.evaluated_cost_s.toFixed(1)} <span>s evaluated cost</span></p><div class="facts"><div>Route length<strong>${r.evaluation ? r.evaluation.length_m.toFixed(1) : '—'} m</strong></div><div>Grid difference<strong>${escapeHtml(referenceLabel)}</strong></div><div>Solver success<strong>${r.solver_success ? 'yes' : 'no'}</strong></div><div>Clearance<strong>${r.evaluation?.minimum_clearance_m == null ? '—' : `${r.evaluation.minimum_clearance_m.toFixed(1)} m`}</strong></div></div><p class="termination">Termination: ${escapeHtml(r.termination_reason)}${violations}${recordedComparison?.refinementChange == null ? '' : ` · reference refinement ${recordedComparison.refinementChange.toFixed(2)}%`}${recordedConfig ? ` · saved native config ${savedConfigText(recordedConfig)}` : ''}</p></article>`;
+          const diagnostic = (key: string) =>
+            typeof r.diagnostics[key] === 'number' && Number.isFinite(r.diagnostics[key])
+              ? formatDiagnostic(r.diagnostics[key] as number)
+              : '—';
+          const energyDiagnostics =
+            r.method === 'energy_descent'
+              ? `<div>Auxiliary energy<strong>${diagnostic('energy_s2')} s²</strong></div><div>Scaled energy-gradient RMS<strong>${diagnostic('scaled_free_gradient_norm')}</strong></div><div>ODE residual RMS<strong>${diagnostic('ode_residual_norm_m')} m</strong></div>`
+              : r.method === 'euler_lagrange'
+                ? `<div>ODE residual RMS<strong>${diagnostic('stationarity_norm')}</strong></div>`
+                : '';
+          return `<article class="result-card"><h3><span style="color:${colors[i % colors.length]}">${resultName(r)}</span><span class="pill ${r.feasible ? '' : 'bad'}">${r.feasible ? 'feasible' : 'infeasible'}</span>${source}</h3><p class="cost-number">${r.evaluated_cost_s === null ? '—' : r.evaluated_cost_s.toFixed(1)} <span>s evaluated cost</span></p><div class="facts"><div>Route length<strong>${r.evaluation ? r.evaluation.length_m.toFixed(1) : '—'} m</strong></div><div>Grid difference<strong>${escapeHtml(referenceLabel)}</strong></div><div>Solver success<strong>${r.solver_success ? 'yes' : 'no'}</strong></div><div>Clearance<strong>${r.evaluation?.minimum_clearance_m == null ? '—' : `${r.evaluation.minimum_clearance_m.toFixed(1)} m`}</strong></div>${energyDiagnostics}</div><p class="termination">Termination: ${escapeHtml(r.termination_reason)}${violations}${recordedComparison?.refinementChange == null ? '' : ` · reference refinement ${recordedComparison.refinementChange.toFixed(2)}%`}${recordedConfig ? ` · saved native config ${savedConfigText(recordedConfig)}` : ''}</p></article>`;
         })
         .join('')
     : resultSource === 'published' && recordedFailure
@@ -413,6 +428,13 @@ function escapeHtml(value: unknown) {
   return div.innerHTML;
 }
 
+function formatDiagnostic(value: number) {
+  const magnitude = Math.abs(value);
+  return magnitude !== 0 && (magnitude < 0.001 || magnitude >= 10_000)
+    ? value.toExponential(2)
+    : value.toPrecision(4);
+}
+
 function configs(): TerrainConfig[] {
   const interior_points = Number($<HTMLSelectElement>('local-n').value) as 32 | 64 | 128,
     reference_grid_size = Number($<HTMLSelectElement>('reference-n').value) as 129 | 257;
@@ -430,8 +452,10 @@ function configs(): TerrainConfig[] {
     for (const input of document.querySelectorAll<HTMLInputElement>('[data-init]:checked'))
       local.push({
         ...common,
-        method: method.dataset.method as 'slsqp' | 'euler_lagrange',
+        method: method.dataset.method as 'energy_descent' | 'slsqp' | 'euler_lagrange',
         initialization: input.dataset.init!,
+        tolerance: method.dataset.method === 'energy_descent' ? 1e-5 : common.tolerance,
+        max_iterations: method.dataset.method === 'energy_descent' ? 400 : common.max_iterations,
         options: {},
       });
   if ($<HTMLInputElement>('run-reference').checked)

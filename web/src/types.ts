@@ -35,7 +35,7 @@ export type Frame = {
 export type TerrainFamily =
   'ridge_pass' | 'competing_corridors' | 'dead_ends' | 'correlated_roughness';
 export type TerrainLayer = 'elevation' | 'cost' | 'arrival';
-export type TerrainMethod = 'euler_lagrange' | 'slsqp' | 'fast_marching';
+export type TerrainMethod = 'energy_descent' | 'euler_lagrange' | 'slsqp' | 'fast_marching';
 export type TerrainGeometry = {
   type: 'Polygon' | 'MultiPolygon';
   coordinates: unknown;
@@ -258,7 +258,7 @@ export function validateTerrainConfig(value: unknown, browserLimits = true): Ter
   const c = value as TerrainConfig;
   if (
     c.version !== 2 ||
-    !['euler_lagrange', 'slsqp', 'fast_marching'].includes(c.method) ||
+    !['energy_descent', 'euler_lagrange', 'slsqp', 'fast_marching'].includes(c.method) ||
     typeof c.initialization !== 'string' ||
     !c.initialization ||
     !Number.isInteger(c.interior_points) ||
@@ -297,7 +297,7 @@ export function validateTerrainResult(value: unknown, scenario: TerrainScenario)
   const route = r.route_m;
   if (
     r.version !== 2 ||
-    !['euler_lagrange', 'slsqp', 'fast_marching'].includes(r.method) ||
+    !['energy_descent', 'euler_lagrange', 'slsqp', 'fast_marching'].includes(r.method) ||
     typeof r.initialization !== 'string' ||
     !r.initialization ||
     typeof r.feasible !== 'boolean' ||

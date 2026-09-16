@@ -77,9 +77,7 @@ playground_field = build_playground_field(playground_strokes)
 playground_obstacles = tuple(
     path_planning_ode.Obstacle(**item) for item in playground_field["obstacles"]
 )
-playground_xx, playground_yy = np.meshgrid(
-    np.linspace(-6, 6, 120), np.linspace(4, -4, 80)
-)
+playground_xx, playground_yy = np.meshgrid(np.linspace(-6, 6, 120), np.linspace(4, -4, 80))
 (public / "playground-preview.json").write_text(
     json.dumps(
         {
@@ -110,16 +108,24 @@ for family, terrain_scenario in terrain_scenarios.items():
 # The initial screen is a real planner result produced by the same public
 # dispatcher as native and browser runs. Missing planner code is a build error.
 preview_scenario = terrain_scenarios["ridge_pass"]
-preview_config = PlannerConfig(
-    method="fast_marching", initialization="fast_marching", reference_grid_size=129
-)
-preview_results = [plan(preview_scenario, preview_config)]
+preview_configs = [
+    PlannerConfig(
+        method="energy_descent",
+        initialization="fast_marching",
+        interior_points=32,
+        reference_grid_size=129,
+        tolerance=1e-5,
+        max_iterations=400,
+    ),
+    PlannerConfig(method="fast_marching", initialization="fast_marching", reference_grid_size=129),
+]
+preview_results = [plan(preview_scenario, config) for config in preview_configs]
 (terrain_dir / "preview.json").write_text(
     json.dumps(
         {
             "version": 2,
             "scenario": preview_scenario.to_dict(),
-            "configs": [preview_config.to_dict()],
+            "configs": [config.to_dict() for config in preview_configs],
             "results": [result.to_dict() for result in preview_results],
         }
     )

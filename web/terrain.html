@@ -108,27 +108,43 @@
             <fieldset>
               <legend>Local methods</legend>
               <label class="check"
-                ><input data-method="slsqp" type="checkbox" checked /> Constrained SLSQP</label
+                ><input data-method="energy_descent" type="checkbox" checked /> Energy
+                descent</label
               >
               <label class="check"
-                ><input data-method="euler_lagrange" type="checkbox" /> Euler–Lagrange</label
+                ><input data-method="slsqp" type="checkbox" /> Constrained SLSQP</label
               >
+              <label class="check"
+                ><input data-method="euler_lagrange" type="checkbox" /> Euler–Lagrange Newton</label
+              >
+              <p class="control-help">
+                Energy descent lowers a sampled auxiliary energy. Travel cost can move separately;
+                compare its energy-gradient and ODE diagnostics below. The displayed stopping
+                gradient is divided by at least its initial RMS. Interactive runs target 10⁻⁵, with
+                at most 400 iterations.
+              </p>
             </fieldset>
             <fieldset>
               <legend>Routes to compare</legend>
               <label class="check"
-                ><input data-init="straight" type="checkbox" checked /> Local · straight</label
+                ><input data-init="straight" type="checkbox" /> Local · straight</label
               ><label class="check"
-                ><input data-init="arc_left" type="checkbox" checked /> Local · left arc</label
+                ><input data-init="arc_left" type="checkbox" /> Local · left arc</label
               ><label class="check"
-                ><input data-init="arc_right" type="checkbox" checked /> Local · right arc</label
+                ><input data-init="arc_right" type="checkbox" /> Local · right arc</label
               ><label class="check"
                 ><input data-init="barrier" type="checkbox" /> Local · barrier only</label
               ><label class="check"
-                ><input data-init="fast_marching" type="checkbox" /> Local · FMM warm start</label
+                ><input data-init="fast_marching" type="checkbox" checked /> Global FMM seed → local
+                refinement</label
               ><label class="check"
                 ><input id="run-reference" type="checkbox" checked /> Fast marching reference</label
               >
+              <p class="control-help">
+                The checked seed first finds a route on the full grid, then the selected local
+                method refines it. The fast-marching reference reports the grid route separately.
+                Cold starts remain optional and can settle on different routes.
+              </p>
             </fieldset>
             <div class="control-grid">
               <label
@@ -171,7 +187,8 @@
           <p>
             Feasibility and termination are separate. Grid difference is signed: a negative value
             means the evaluated route cost is below the finite-grid reference. It is not an
-            optimality gap.
+            optimality gap. Auxiliary energy, its scaled free-coordinate gradient, and the path ODE
+            residual are separate numerical diagnostics; none certifies a global best route.
           </p>
         </div>
         <div id="cards" class="cards">

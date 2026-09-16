@@ -54,10 +54,12 @@ segment, checks endpoints and domain coverage, and reports barrier collisions.
 Domain boundary contact is allowed; contact with an impassable barrier is a
 collision. A colliding route still receives an independent cost measurement.
 
-The three methods are `euler_lagrange`, constrained `slsqp`, and first-order
-`fast_marching`. Local methods can use `straight`, `arc_left`, `arc_right`, or
-`barrier` initialisation; the barrier seed and FMM warm start are shared where
-applicable. For a v1 Gaussian `Scene`, use
+The four methods are energy descent (`energy_descent`), Euler–Lagrange Newton
+(`euler_lagrange`), constrained `slsqp`, and first-order `fast_marching`. The
+live laboratory selects energy descent and the FMM reference for a new run;
+the other methods remain available for explicit comparison. Local methods can
+use `straight`, `arc_left`, `arc_right`, or `barrier` initialisation; the barrier
+seed and FMM warm start are shared where applicable. For a v1 Gaussian `Scene`, use
 `scene_to_terrain_scenario(scene)` explicitly: it is a sampled bicubic
 approximation and does not silently claim to be the original analytic field.
 
@@ -194,6 +196,25 @@ is in [`terrain.py`](../src/path_planning_ode/terrain.py); SciPy documents the
 rectangular spline, interpolation setting, derivatives, and extrapolation
 behaviour in
 [`RectBivariateSpline`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.RectBivariateSpline.html).
+
+### Energy descent
+
+Energy descent optimizes only the interior vertices of the sampled route. It
+uses line search on a quadrature approximation of the auxiliary energy $E$ and
+accepts a step only when that sampled energy decreases. Its raw free-gradient
+RMS differentiates normalized energy with respect to normalized free
+coordinates. The stopping metric divides that RMS by the larger of one and
+its initial value. Its ODE residual is evaluated separately in physical
+metres. Energy decrease does not promise that independently evaluated travel
+cost decreases, and neither diagnostic proves feasibility or global
+optimality. The browser uses a scaled-gradient tolerance of $10^{-5}$;
+tightening it to $10^{-7}$ changed the tested route costs negligibly while
+materially increasing interactive run time. Its default
+first computes a global fast-marching seed, locally refines that route with
+energy descent for at most 400 iterations, and reports the unrefined
+fast-marching route separately as a grid reference. The optional cold starts
+expose initialization sensitivity; energy descent does not perform the global
+route selection.
 
 ### Constrained polyline method
 

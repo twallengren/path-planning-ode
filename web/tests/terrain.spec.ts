@@ -46,8 +46,54 @@ async function openTerrain(page: Page) {
   await page.goto('./terrain.html');
   await expect(page.locator('#runtime')).toContainText('Precomputed validated preview');
   await expect(page.locator('#terrain-map')).toBeVisible();
-  await expect(page.locator('#cards .result-card')).toHaveCount(1);
+  await expect(page.locator('#cards .result-card')).toHaveCount(2);
 }
+
+test('default energy run includes a converged FMM-warm candidate and separate reference', async ({
+  page,
+}) => {
+  await captureTerrainResults(page);
+  await openTerrain(page);
+  const started = Date.now();
+  await page.locator('#run').click();
+  await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 120_000 });
+  const elapsedMs = Date.now() - started;
+  const results = await page.evaluate(() => (window as any).terrainResults);
+  const warm = results.find(
+    (result: { method: string; initialization: string }) =>
+      result.method === 'energy_descent' && result.initialization === 'fast_marching',
+  );
+  const reference = results.find((result: { method: string }) => result.method === 'fast_marching');
+  const native = JSON.parse(
+    execFileSync(
+      python,
+      [
+        '-c',
+        "import json; from path_planning_ode.soft_walls import soften_walls; from path_planning_ode.terrain_generators import synthetic_terrain; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; s=soften_walls(synthetic_terrain('ridge_pass',seed=0,contrast=1.0,barriers=True),multiplier=100); cs=[PlannerConfig(method='energy_descent',initialization='fast_marching',interior_points=32,reference_grid_size=129,tolerance=1e-5,max_iterations=400),PlannerConfig(method='fast_marching',initialization='fast_marching',interior_points=32,reference_grid_size=129)]; print(json.dumps([plan(s,c).to_dict() for c in cs]))",
+      ],
+      { encoding: 'utf8' },
+    ),
+  );
+  expect(results).toHaveLength(2);
+  expect(warm.termination_reason).toBe('stationary');
+  expect(warm.solver_success).toBe(true);
+  expect(warm.feasible).toBe(true);
+  expect(warm.diagnostics.iterations).toBeGreaterThan(0);
+  expect(warm.diagnostics.energy_s2).toBeLessThan(warm.diagnostics.initial_energy_s2);
+  expect(warm.evaluated_cost_s).toBeLessThan(reference.evaluated_cost_s * 1.01);
+  for (let index = 0; index < native.length; index++) {
+    expect(results[index].feasible).toBe(native[index].feasible);
+    expect(results[index].termination_reason).toBe(native[index].termination_reason);
+    expect(results[index].evaluated_cost_s).toBeCloseTo(native[index].evaluated_cost_s, 6);
+  }
+  await expect(page.locator('#cards')).toContainText(
+    'Energy descent · Global FMM seed → local refinement',
+  );
+  await expect(page.locator('#cards')).toContainText('Fast marching reference');
+  test
+    .info()
+    .annotations.push({ type: 'default-browser-runtime-ms', description: String(elapsedMs) });
+});
 
 test('terrain preview, native parity, profiles, layers, and v2 export', async ({ page }) => {
   const errors: string[] = [];
@@ -66,6 +112,14 @@ test('terrain preview, native parity, profiles, layers, and v2 export', async ({
     };
   });
   await openTerrain(page);
+  await expect(page.locator('[data-method="energy_descent"]')).toBeChecked();
+  await expect(page.locator('[data-method="slsqp"]')).not.toBeChecked();
+  await expect(page.locator('[data-method="euler_lagrange"]')).not.toBeChecked();
+  await expect(page.locator('#run-reference')).toBeChecked();
+  await expect(page.locator('[data-init="straight"]')).not.toBeChecked();
+  await expect(page.locator('[data-init="fast_marching"]')).toBeChecked();
+  await expect(page.locator('[data-init="arc_left"]')).not.toBeChecked();
+  await expect(page.locator('[data-init="arc_right"]')).not.toBeChecked();
   await expect(page.locator('#map-readout')).toHaveText(/Elevation .* metres$/);
   await page.locator('[data-layer="cost"]').click();
   await expect(page.locator('#map-readout')).toHaveText(/Travel cost .* seconds \/ metre$/);
@@ -78,13 +132,20 @@ test('terrain preview, native parity, profiles, layers, and v2 export', async ({
   await expect(page.locator('#message')).toHaveText('Scenario imported.');
   await page.locator('[data-init="arc_left"]').uncheck();
   await page.locator('[data-init="arc_right"]').uncheck();
+  await page.locator('[data-init="fast_marching"]').uncheck();
+  await page.locator('[data-init="straight"]').check();
+  await page.locator('[data-method="slsqp"]').check();
   await page.locator('[data-method="euler_lagrange"]').check();
   await page.locator('#include-arrival').check();
   await page.locator('#run').click();
   await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
-  await expect(page.locator('#cards .result-card')).toHaveCount(3);
+  await expect(page.locator('#cards .result-card')).toHaveCount(4);
   await expect(page.locator('#cards')).toContainText('Solver success');
   await expect(page.locator('#cards')).toContainText('Grid difference');
+  const energyCard = page.locator('#cards .result-card').filter({ hasText: 'Energy descent' });
+  await expect(energyCard).toContainText('Auxiliary energy');
+  await expect(energyCard).toContainText('Scaled energy-gradient RMS');
+  await expect(energyCard).toContainText('ODE residual RMS');
   await page.locator('[data-layer="arrival"]').click();
   await expect(page.locator('#map-readout')).toHaveText(/Arrival .* seconds$/);
   await page.locator('#show-3d').check();
@@ -96,7 +157,7 @@ test('terrain preview, native parity, profiles, layers, and v2 export', async ({
       python,
       [
         '-c',
-        "import json; from path_planning_ode.terrain_generators import validation_terrain; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; s=validation_terrain('uniform'); cs=[PlannerConfig(method=m, initialization='straight', interior_points=32, reference_grid_size=129, options=({'include_arrival':True} if m=='fast_marching' else {})) for m in ('slsqp','euler_lagrange','fast_marching')]; print(json.dumps([plan(s,c).to_dict() for c in cs]))",
+        "import json; from path_planning_ode.terrain_generators import validation_terrain; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; s=validation_terrain('uniform'); cs=[PlannerConfig(method=m, initialization='straight', interior_points=32, reference_grid_size=129, tolerance=(1e-5 if m=='energy_descent' else 1e-7), max_iterations=(400 if m=='energy_descent' else 1000), options=({'include_arrival':True} if m=='fast_marching' else {})) for m in ('energy_descent','slsqp','euler_lagrange','fast_marching')]; print(json.dumps([plan(s,c).to_dict() for c in cs]))",
       ],
       { encoding: 'utf8' },
     ),
@@ -108,34 +169,78 @@ test('terrain preview, native parity, profiles, layers, and v2 export', async ({
   await page.locator('summary').filter({ hasText: 'Import & export' }).click();
   const download = page.waitForEvent('download');
   await page.locator('#export').click();
-  expect((await download).suggestedFilename()).toBe('terrain-scenario-v2.json');
+  const downloaded = await download;
+  expect(downloaded.suggestedFilename()).toBe('terrain-scenario-v2.json');
+  const exported = JSON.parse(readFileSync((await downloaded.path())!, 'utf8'));
+  const exportedEnergy = exported.results.find(
+    (result: { method: string }) => result.method === 'energy_descent',
+  );
+  const exportedEnergyConfig = exported.configs.find(
+    (config: { method: string }) => config.method === 'energy_descent',
+  );
+  expect(exportedEnergyConfig.tolerance).toBe(1e-5);
+  expect(exportedEnergyConfig.max_iterations).toBe(400);
+  expect(exportedEnergy.diagnostics.energy_s2).toBeGreaterThan(0);
+  expect(exportedEnergy.diagnostics.free_gradient_norm).toBeGreaterThanOrEqual(0);
+  expect(exportedEnergy.diagnostics.scaled_free_gradient_norm).toBeGreaterThanOrEqual(0);
+  expect(exportedEnergy.diagnostics.ode_residual_norm_m).toBeGreaterThanOrEqual(0);
+  await page.locator('#file').setInputFiles({
+    name: 'energy-results-v2.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(exported)),
+  });
+  await expect(page.locator('#runtime')).toContainText('Imported cached results');
+  await expect(page.locator('#cards')).toContainText('Energy descent');
+  await expect(page.locator('[data-method="energy_descent"]')).toBeChecked();
 
   await page.locator('#file').setInputFiles({
     name: 'heterogeneous-v2.json',
     mimeType: 'application/json',
     buffer: Buffer.from(fixture('symmetry')),
   });
+  await page.locator('[data-method="slsqp"]').uncheck();
+  await page.locator('[data-method="euler_lagrange"]').uncheck();
+  await page.locator('[data-init="straight"]').uncheck();
+  await page.locator('[data-init="arc_left"]').check();
   await page.locator('#run-reference').uncheck();
   await page.locator('#run').click();
   await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
-  const heterogeneousBrowser = await page.evaluate(() => (window as any).terrainResults);
+  const [heterogeneousBrowser] = await page.evaluate(() => (window as any).terrainResults);
   const heterogeneousNative = JSON.parse(
     execFileSync(
       python,
       [
         '-c',
-        "import json; from path_planning_ode.terrain_generators import validation_terrain; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; s=validation_terrain('symmetry'); cs=[PlannerConfig(method=m, initialization='straight', interior_points=32, reference_grid_size=129) for m in ('slsqp','euler_lagrange')]; print(json.dumps([plan(s,c).to_dict() for c in cs]))",
+        "import json; from path_planning_ode.terrain_generators import validation_terrain; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; from path_planning_ode.terrain_seeds import make_seed; s=validation_terrain('symmetry'); c=PlannerConfig(method='energy_descent', initialization='arc_left', interior_points=32, reference_grid_size=129, tolerance=1e-5, max_iterations=400); print(json.dumps({'result':plan(s,c).to_dict(),'seed':make_seed(s,'arc_left',32).route_m.tolist()}))",
       ],
       { encoding: 'utf8' },
     ),
   );
-  for (let i = 0; i < heterogeneousNative.length; i++) {
-    expect(heterogeneousBrowser[i].feasible).toBe(heterogeneousNative[i].feasible);
-    expect(heterogeneousBrowser[i].evaluated_cost_s).toBeCloseTo(
-      heterogeneousNative[i].evaluated_cost_s,
-      6,
-    );
-  }
+  expect(heterogeneousBrowser.method).toBe('energy_descent');
+  expect(heterogeneousBrowser.diagnostics.iterations).toBeGreaterThan(0);
+  expect(heterogeneousBrowser.diagnostics.energy_s2).toBeLessThan(
+    heterogeneousBrowser.diagnostics.initial_energy_s2,
+  );
+  const displacement = Math.max(
+    ...heterogeneousBrowser.route_m.map((point: number[], index: number) =>
+      Math.hypot(
+        point[0] - heterogeneousNative.seed[index][0],
+        point[1] - heterogeneousNative.seed[index][1],
+      ),
+    ),
+  );
+  expect(displacement).toBeGreaterThan(1);
+  expect(heterogeneousBrowser.feasible).toBe(heterogeneousNative.result.feasible);
+  expect(heterogeneousBrowser.evaluated_cost_s).toBeCloseTo(
+    heterogeneousNative.result.evaluated_cost_s,
+    6,
+  );
+  for (let i = 0; i < heterogeneousBrowser.route_m.length; i++)
+    for (let axis = 0; axis < 2; axis++)
+      expect(heterogeneousBrowser.route_m[i][axis]).toBeCloseTo(
+        heterogeneousNative.result.route_m[i][axis],
+        6,
+      );
   expect(errors).toEqual([]);
 });
 
@@ -161,6 +266,9 @@ test('soft walls are the live default and share finite costs across browser plan
   });
   await page.locator('[data-init="arc_left"]').uncheck();
   await page.locator('[data-init="arc_right"]').uncheck();
+  await page.locator('[data-init="fast_marching"]').uncheck();
+  await page.locator('[data-init="straight"]').check();
+  await page.locator('[data-method="slsqp"]').check();
   await page.locator('[data-method="euler_lagrange"]').check();
   await page.locator('#run').click();
   await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
@@ -170,12 +278,12 @@ test('soft walls are the live default and share finite costs across browser plan
       python,
       [
         '-c',
-        "import json; from path_planning_ode.soft_walls import soften_walls; from path_planning_ode.terrain_generators import obstacle_detour_fixture; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; s=soften_walls(obstacle_detour_fixture()); cs=[PlannerConfig(method=m, initialization=('fast_marching' if m=='fast_marching' else 'straight'), interior_points=32, reference_grid_size=129) for m in ('slsqp','euler_lagrange','fast_marching')]; print(json.dumps([plan(s,c).to_dict() for c in cs]))",
+        "import json; from path_planning_ode.soft_walls import soften_walls; from path_planning_ode.terrain_generators import obstacle_detour_fixture; from path_planning_ode.terrain import PlannerConfig; from path_planning_ode.planners import plan; s=soften_walls(obstacle_detour_fixture()); cs=[PlannerConfig(method=m, initialization=('fast_marching' if m=='fast_marching' else 'straight'), interior_points=32, reference_grid_size=129, tolerance=(1e-5 if m=='energy_descent' else 1e-7), max_iterations=(400 if m=='energy_descent' else 1000)) for m in ('energy_descent','slsqp','euler_lagrange','fast_marching')]; print(json.dumps([plan(s,c).to_dict() for c in cs]))",
       ],
       { encoding: 'utf8' },
     ),
   );
-  expect(browser).toHaveLength(3);
+  expect(browser).toHaveLength(4);
   for (let i = 0; i < native.length; i++) {
     expect(browser[i].feasible).toBe(native[i].feasible);
     expect(browser[i].evaluation.violations).not.toContain('barrier_collision');
@@ -188,6 +296,7 @@ test('soft walls are the live default and share finite costs across browser plan
   await expect(page.locator('#model-indicator')).toContainText('finite high-cost walls');
   await page.locator('[data-method="slsqp"]').uncheck();
   await page.locator('[data-method="euler_lagrange"]').uncheck();
+  await page.locator('[data-method="energy_descent"]').uncheck();
   await page.locator('#run').click();
   await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
   await expect(page.locator('#model-indicator')).toContainText('hard barriers · impassable');
@@ -237,9 +346,10 @@ test('lazy terrain dependency failure keeps preview and retry recovers', async (
   await page.locator('[data-init="arc_left"]').uncheck();
   await page.locator('[data-init="arc_right"]').uncheck();
   await page.locator('[data-init="straight"]').uncheck();
+  await page.locator('[data-init="fast_marching"]').uncheck();
   await page.locator('#run').click();
   await expect(page.locator('#runtime')).toContainText('Run failed', { timeout: 60_000 });
-  await expect(page.locator('#cards .result-card')).toHaveCount(1);
+  await expect(page.locator('#cards .result-card')).toHaveCount(2);
   await page.unroute('**/runtime/scipy-*.whl');
   await page.locator('#run').click();
   await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
@@ -248,6 +358,21 @@ test('lazy terrain dependency failure keeps preview and retry recovers', async (
 
 test('cancellation rejects stale work, retry recovers, and v1 imports adapt', async ({ page }) => {
   await openTerrain(page);
+  await page.locator('#local-n').selectOption('128');
+  await page.locator('#run').click();
+  await expect(page.locator('#cancel')).toBeEnabled();
+  await expect(page.locator('#runtime')).toContainText('Solving', { timeout: 90_000 });
+  await page.locator('#cancel').click();
+  await expect(page.locator('#runtime')).toContainText('Cancelled');
+  await expect(page.locator('#message')).toHaveText('Run cancelled.');
+
+  await page.locator('#local-n').selectOption('32');
+  await page.locator('[data-init="arc_left"]').uncheck();
+  await page.locator('[data-init="arc_right"]').uncheck();
+  await page.locator('#run').click();
+  await expect(page.locator('#runtime')).toContainText('Comparison complete', { timeout: 90_000 });
+  await expect(page.locator('#cards')).toContainText('Energy descent');
+
   await page.locator('#run').click();
   await expect(page.locator('#cancel')).toBeEnabled();
   await page.locator('#seed').fill('3');
@@ -285,11 +410,11 @@ test('import stops active work and keeps imported cached results unverified', as
   await expect(page.locator('#runtime')).toContainText('Imported cached results');
   await expect(page.locator('#runtime')).toContainText('unverified until rerun');
   await expect(page.locator('#cards')).toContainText('cached · unverified');
-  await expect(page.locator('#cards .result-card')).toHaveCount(1);
+  await expect(page.locator('#cards .result-card')).toHaveCount(2);
   await page.waitForTimeout(1_000);
   await expect(page.locator('#runtime')).toContainText('Imported cached results');
   await expect(page.locator('#runtime')).toContainText('unverified until rerun');
-  await expect(page.locator('#cards .result-card')).toHaveCount(1);
+  await expect(page.locator('#cards .result-card')).toHaveCount(2);
 });
 
 test('v2 import rejects malformed results and exports their original configuration', async ({

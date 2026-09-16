@@ -24,7 +24,7 @@ from numpy.typing import ArrayLike, NDArray
 
 FloatArray = NDArray[np.float64]
 JSONValue = None | bool | int | float | str | list["JSONValue"] | dict[str, "JSONValue"]
-PlannerMethod = Literal["euler_lagrange", "slsqp", "fast_marching"]
+PlannerMethod = Literal["euler_lagrange", "slsqp", "fast_marching", "energy_descent"]
 
 
 def _json_value(value: Any, *, path: str = "value") -> JSONValue:
@@ -363,7 +363,7 @@ class PlannerConfig:
     def __post_init__(self) -> None:
         if self.version != 2:
             raise ValueError("Unsupported planner configuration version; expected 2.")
-        if self.method not in ("euler_lagrange", "slsqp", "fast_marching"):
+        if self.method not in ("euler_lagrange", "slsqp", "fast_marching", "energy_descent"):
             raise ValueError("Unknown planner method.")
         if not isinstance(self.initialization, str) or not self.initialization:
             raise ValueError("initialization must be a non-empty string.")
@@ -540,7 +540,7 @@ class PlannerResult:
     def __post_init__(self) -> None:
         if self.version != 2:
             raise ValueError("Unsupported planner result version; expected 2.")
-        if self.method not in ("euler_lagrange", "slsqp", "fast_marching"):
+        if self.method not in ("euler_lagrange", "slsqp", "fast_marching", "energy_descent"):
             raise ValueError("Unknown planner method.")
         if not isinstance(self.initialization, str) or not self.initialization:
             raise ValueError("initialization must be a non-empty string.")

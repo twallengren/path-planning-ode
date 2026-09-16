@@ -85,6 +85,8 @@ __all__ = [
     "playground_energy_gradient",
     "set_playground_pin",
     "strokes_to_obstacles",
+    "solve_energy_descent",
+    "terrain_energy_and_gradient",
 ]
 
 _TERRAIN_EXPORTS = {
@@ -152,6 +154,8 @@ _PLAYGROUND_EXPORTS = {
     "strokes_to_obstacles",
 }
 
+_TERRAIN_ENERGY_EXPORTS = {"solve_energy_descent", "terrain_energy_and_gradient"}
+
 
 def __getattr__(name: str):
     """Load the SciPy/Shapely terrain API only when a caller requests it."""
@@ -181,6 +185,10 @@ def __getattr__(name: str):
         return value
     if name in _PLAYGROUND_EXPORTS:
         value = getattr(import_module(".playground", __name__), name)
+        globals()[name] = value
+        return value
+    if name in _TERRAIN_ENERGY_EXPORTS:
+        value = getattr(import_module(".terrain_energy", __name__), name)
         globals()[name] = value
         return value
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

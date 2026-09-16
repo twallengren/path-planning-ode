@@ -22,6 +22,11 @@ updates. It reports weighted route cost separately from the auxiliary energy,
 free-gradient RMS, and ODE-residual RMS. The original form-based Gaussian
 explorer remains available at `explorer.html`.
 
+The terrain laboratory also offers energy descent as its default local method,
+alongside SLSQP, Euler–Lagrange Newton, and a fast-marching grid reference. It
+reports evaluated travel cost and feasibility separately from energy,
+normalized energy-gradient, ODE-residual, and termination diagnostics.
+
 ## Run locally
 
 Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/getting-started/installation/).
@@ -70,7 +75,8 @@ uses dependency ranges; uv uses the committed lockfile.
 from path_planning_ode import Obstacle, Scene, SolverOptions, solve
 
 scene = Scene(
-    start=(-2, -2), end=(12, 12),
+    start=(-2, -2),
+    end=(12, 12),
     obstacles=(Obstacle(x=5, y=5, weight=6, width=2),),
     options=SolverOptions(interior_points=30, mode="damped"),
 )
