@@ -36,43 +36,16 @@ __all__ = [
     "solve",
     "step",
     "weighted_distance",
-    "PlannerConfig",
-    "PlannerResult",
     "RouteEvaluation",
     "TerrainField",
     "TerrainScenario",
     "evaluate_route",
     "uniform_terrain_fixture",
-    "FastMarchingError",
-    "FastMarchingSolution",
-    "compute_arrival_time",
-    "extract_route",
-    "fast_marching_seed",
-    "solve_fast_marching",
-    "plan",
-    "scene_to_terrain_scenario",
-    "BENCHMARK_SEEDS",
-    "DIFFICULTY_LEVELS",
-    "FAMILY_NAMES",
-    "SOURCE_RESOLUTION",
-    "VALIDATION_NAMES",
-    "competing_corridors_terrain",
-    "correlated_roughness_terrain",
-    "dead_ends_terrain",
-    "disconnected_fixture",
-    "layered_refraction_fixture",
     "mount_tamalpais_terrain",
-    "obstacle_detour_fixture",
-    "ridge_pass_terrain",
-    "symmetry_fixture",
-    "synthetic_terrain",
-    "validation_terrain",
-    "INITIALIZATIONS",
-    "SeedResult",
-    "make_seed",
-    "resample_route",
-    "seed_bank",
     "soften_walls",
+    "PlaygroundField",
+    "build_playground_preset",
+    "terrain_to_playground_field",
     "BrushStroke",
     "MAX_GAUSSIANS",
     "PlaygroundMetrics",
@@ -85,60 +58,18 @@ __all__ = [
     "playground_energy_gradient",
     "set_playground_pin",
     "strokes_to_obstacles",
-    "solve_energy_descent",
-    "terrain_energy_and_gradient",
 ]
 
 _TERRAIN_EXPORTS = {
-    "PlannerConfig",
-    "PlannerResult",
     "RouteEvaluation",
     "TerrainField",
     "TerrainScenario",
     "evaluate_route",
     "uniform_terrain_fixture",
 }
-
-_FAST_MARCHING_EXPORTS = {
-    "FastMarchingError",
-    "FastMarchingSolution",
-    "compute_arrival_time",
-    "extract_route",
-    "fast_marching_seed",
-    "solve_fast_marching",
-}
-
-_PLANNER_EXPORTS = {"plan", "scene_to_terrain_scenario"}
-
-_TERRAIN_GENERATOR_EXPORTS = {
-    "BENCHMARK_SEEDS",
-    "DIFFICULTY_LEVELS",
-    "FAMILY_NAMES",
-    "SOURCE_RESOLUTION",
-    "VALIDATION_NAMES",
-    "competing_corridors_terrain",
-    "correlated_roughness_terrain",
-    "dead_ends_terrain",
-    "disconnected_fixture",
-    "layered_refraction_fixture",
-    "mount_tamalpais_terrain",
-    "obstacle_detour_fixture",
-    "ridge_pass_terrain",
-    "symmetry_fixture",
-    "synthetic_terrain",
-    "validation_terrain",
-}
-
-_TERRAIN_SEED_EXPORTS = {
-    "INITIALIZATIONS",
-    "SeedResult",
-    "make_seed",
-    "resample_route",
-    "seed_bank",
-}
-
+_GENERATOR_EXPORTS = {"mount_tamalpais_terrain"}
+_FIELD_EXPORTS = {"PlaygroundField", "build_playground_preset", "terrain_to_playground_field"}
 _SOFT_WALL_EXPORTS = {"soften_walls"}
-
 _PLAYGROUND_EXPORTS = {
     "BrushStroke",
     "MAX_GAUSSIANS",
@@ -154,41 +85,21 @@ _PLAYGROUND_EXPORTS = {
     "strokes_to_obstacles",
 }
 
-_TERRAIN_ENERGY_EXPORTS = {"solve_energy_descent", "terrain_energy_and_gradient"}
-
 
 def __getattr__(name: str):
-    """Load the SciPy/Shapely terrain API only when a caller requests it."""
+    """Load optional terrain and playground modules only when requested."""
     if name in _TERRAIN_EXPORTS:
-        value = getattr(import_module(".terrain", __name__), name)
-        globals()[name] = value
-        return value
-    if name in _FAST_MARCHING_EXPORTS:
-        value = getattr(import_module(".fast_marching", __name__), name)
-        globals()[name] = value
-        return value
-    if name in _PLANNER_EXPORTS:
-        value = getattr(import_module(".planners", __name__), name)
-        globals()[name] = value
-        return value
-    if name in _TERRAIN_GENERATOR_EXPORTS:
-        value = getattr(import_module(".terrain_generators", __name__), name)
-        globals()[name] = value
-        return value
-    if name in _TERRAIN_SEED_EXPORTS:
-        value = getattr(import_module(".terrain_seeds", __name__), name)
-        globals()[name] = value
-        return value
-    if name in _SOFT_WALL_EXPORTS:
-        value = getattr(import_module(".soft_walls", __name__), name)
-        globals()[name] = value
-        return value
-    if name in _PLAYGROUND_EXPORTS:
-        value = getattr(import_module(".playground", __name__), name)
-        globals()[name] = value
-        return value
-    if name in _TERRAIN_ENERGY_EXPORTS:
-        value = getattr(import_module(".terrain_energy", __name__), name)
-        globals()[name] = value
-        return value
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+        module = ".terrain"
+    elif name in _GENERATOR_EXPORTS:
+        module = ".terrain_generators"
+    elif name in _FIELD_EXPORTS:
+        module = ".field_adapter"
+    elif name in _SOFT_WALL_EXPORTS:
+        module = ".soft_walls"
+    elif name in _PLAYGROUND_EXPORTS:
+        module = ".playground"
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(module, __name__), name)
+    globals()[name] = value
+    return value

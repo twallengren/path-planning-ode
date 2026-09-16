@@ -2,11 +2,12 @@
 :root {
   font-family: 'DM Sans', sans-serif;
   color: #203930;
-  background: #f4f1e9;
+  background: #f3f0e7;
   font-synthesis: none;
-  --line: #d6d8cd;
+  --line: #d3d6ca;
   --green: #125f56;
   --muted: #68756d;
+  --paper: #faf8f2;
 }
 * {
   box-sizing: border-box;
@@ -58,13 +59,12 @@ summary:focus-visible {
   transform: none;
 }
 .playground-header,
-.playground-page main,
-.playground-footer {
-  width: min(100% - 64px, 1320px);
+.playground-page main {
+  width: min(100% - 56px, 1320px);
   margin: 0 auto;
 }
 .playground-header {
-  height: 74px;
+  min-height: 66px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -76,33 +76,23 @@ summary:focus-visible {
   font-weight: 700;
   letter-spacing: 1.8px;
 }
-.playground-wordmark span {
-  margin-left: 14px;
-  color: var(--muted);
-  font:
-    17px 'Instrument Serif',
-    serif;
-  letter-spacing: 0;
-}
-.playground-header nav,
-.playground-footer nav {
+.playground-header nav {
   display: flex;
-  gap: 25px;
+  gap: 28px;
   font-size: 12px;
 }
-.playground-header nav a:hover,
-.playground-footer a:hover {
+.playground-header nav a:hover {
   color: var(--green);
 }
 .playground-intro {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
+  grid-template-columns: 1.25fr 0.75fr;
   gap: 48px;
   align-items: end;
-  padding: 34px 0 30px;
+  padding: 25px 0 24px;
 }
 .playground-kicker {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   color: var(--muted);
   font:
     10px 'IBM Plex Mono',
@@ -112,30 +102,27 @@ summary:focus-visible {
 .playground-intro h1 {
   margin: 0;
   font:
-    58px/0.82 'Instrument Serif',
+    52px/0.86 'Instrument Serif',
     serif;
-  letter-spacing: -1.5px;
+  letter-spacing: -1.2px;
 }
 .playground-intro h1 em {
   color: var(--green);
   font-weight: 400;
 }
-.playground-intro-copy {
-  max-width: 520px;
+.playground-intro > p {
+  max-width: 500px;
+  margin: 0;
   font-size: 15px;
   line-height: 1.55;
-}
-.playground-hint,
-.playground-help {
-  color: var(--muted);
 }
 .playground-shell {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.42);
 }
 .playground-title-row {
-  min-height: 72px;
-  padding: 14px 20px;
+  min-height: 64px;
+  padding: 11px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -145,11 +132,11 @@ summary:focus-visible {
 .playground-title-row h2 {
   margin: 0;
   font:
-    28px 'Instrument Serif',
+    25px 'Instrument Serif',
     serif;
 }
 .playground-title-row .playground-kicker {
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 .playground-runtime-row {
   color: var(--muted);
@@ -166,29 +153,30 @@ summary:focus-visible {
 }
 .playground-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 278px;
+  grid-template-columns: minmax(0, 1fr) 310px;
 }
 .playground-stage {
   min-width: 0;
-  padding: 14px;
+  padding: 12px;
   border-right: 1px solid var(--line);
 }
 .playground-tools {
   display: flex;
   gap: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 9px;
 }
 .playground-tools button,
 .playground-transport button,
 .playground-controls button {
-  min-height: 36px;
-  padding: 7px 11px;
-  border: 1px solid #c5cbbf;
-  background: #faf9f5;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #c3c9bd;
+  background: var(--paper);
   border-radius: 3px;
 }
 .playground-tools button.active,
 .playground-presets button.active,
+.playground-choice button.active,
 .playground-tools .playground-primary {
   border-color: var(--green);
   color: white;
@@ -198,7 +186,7 @@ summary:focus-visible {
   font:
     10px 'IBM Plex Mono',
     monospace;
-  opacity: 0.65;
+  opacity: 0.68;
 }
 .playground-toolbar-spacer {
   flex: 1;
@@ -207,12 +195,14 @@ summary:focus-visible {
   position: relative;
   overflow: hidden;
   border: 1px solid #c9cdc4;
-  background: #f3f1e9;
+  background: #e8e5dc;
 }
 #playground-canvas {
   display: block;
   width: 100%;
-  aspect-ratio: 3/2;
+  aspect-ratio: 16/9;
+  min-height: 360px;
+  max-height: 620px;
   touch-action: none;
 }
 .playground-canvas-key {
@@ -221,7 +211,7 @@ summary:focus-visible {
   bottom: 8px;
   padding: 4px 7px;
   color: #59665e;
-  background: rgba(247, 244, 236, 0.8);
+  background: rgba(247, 244, 236, 0.82);
   font:
     9px 'IBM Plex Mono',
     monospace;
@@ -234,52 +224,93 @@ summary:focus-visible {
 .playground-canvas-key span:nth-child(2) {
   color: #bf5b35;
 }
+.playground-layer-key {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+  padding: 4px 7px;
+  color: #59665e;
+  background: rgba(247, 244, 236, 0.82);
+  font:
+    9px 'IBM Plex Mono',
+    monospace;
+  pointer-events: none;
+}
+.playground-layer-key span + span {
+  padding-left: 8px;
+  border-left: 1px solid #c9cdc4;
+}
 .playground-transport {
-  min-height: 48px;
+  min-height: 46px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-top: 10px;
-}
-.playground-transport .playground-primary {
-  color: white;
-  border-color: var(--green);
-  background: var(--green);
+  gap: 7px;
+  padding-top: 9px;
 }
 #playground-status {
   flex: 1;
-  margin: 0 0 0 6px;
+  margin: 0 0 0 5px;
   color: var(--muted);
   font-size: 12px;
+  text-align: right;
 }
 #playground-status.error {
   color: #9b3f29;
 }
 .playground-message {
-  margin: 0 0 6px;
+  margin: 0 0 5px;
   padding: 8px 10px;
   color: var(--green);
-  background: #e9eee8;
+  background: #e5ece7;
   font-size: 12px;
 }
 .playground-message.error {
   color: #8d321f;
   background: #f5e7df;
 }
+.playground-attribution {
+  margin: 0 0 5px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+.playground-controls {
+  min-width: 0;
+}
 .playground-controls section {
-  padding: 15px 17px;
+  padding: 13px 15px;
   border-bottom: 1px solid var(--line);
 }
 .playground-controls section:last-child {
   border-bottom: 0;
 }
 .playground-controls h3 {
-  margin: 0 0 12px;
+  margin: 0 0 9px;
   font:
-    12px 'IBM Plex Mono',
+    11px 'IBM Plex Mono',
     monospace;
   letter-spacing: 0.4px;
   text-transform: uppercase;
+}
+.playground-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.playground-section-heading label {
+  display: flex !important;
+  gap: 5px !important;
+  margin: 0 !important;
+  color: var(--muted);
+}
+#playground-seed {
+  width: 66px;
+  padding: 3px 4px;
+  border: 1px solid #c5cbbf;
+  background: var(--paper);
 }
 .playground-controls label {
   display: grid;
@@ -289,46 +320,68 @@ summary:focus-visible {
   margin: 10px 0 5px;
   font-size: 12px;
 }
-.playground-controls output {
-  color: var(--muted);
-  font:
-    11px 'IBM Plex Mono',
-    monospace;
+.playground-controls select {
+  max-width: 145px;
+  padding: 5px;
+  border: 1px solid #c5cbbf;
+  background: var(--paper);
 }
 .playground-controls input[type='range'] {
   width: 100%;
   accent-color: var(--green);
 }
-.playground-controls select {
-  max-width: 128px;
-  padding: 5px;
-  border: 1px solid #c5cbbf;
-  background: #faf9f5;
+.playground-controls output {
+  color: var(--muted);
+  font:
+    10px 'IBM Plex Mono',
+    monospace;
 }
 .playground-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.playground-presets button {
+  min-height: 31px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+#playground-randomize {
+  width: 100%;
+  margin-top: 6px;
+}
+.playground-choice {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 .playground-help {
   margin: 8px 0 0;
+  color: var(--muted);
   font-size: 10px;
   line-height: 1.45;
 }
-.playground-file-actions button + button {
-  margin-left: 5px;
+.playground-file-actions {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+.playground-controls summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
 }
 .playground-metrics {
   display: grid;
-  grid-template-columns: 0.7fr 0.5fr 1.8fr;
+  grid-template-columns: 0.7fr 1.3fr;
   border-top: 1px solid var(--line);
 }
 .playground-metrics > div {
-  min-height: 74px;
+  min-height: 66px;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 1px 10px;
-  padding: 13px 18px;
+  padding: 10px 16px;
   border-right: 1px solid var(--line);
 }
 .playground-metrics > div:last-child {
@@ -343,7 +396,7 @@ summary:focus-visible {
 .playground-metrics strong {
   grid-row: span 2;
   font:
-    27px 'Instrument Serif',
+    25px 'Instrument Serif',
     serif;
 }
 .playground-metrics small {
@@ -353,107 +406,10 @@ summary:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.playground-explainer {
-  display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
-  gap: 70px;
-  padding: 78px 8%;
-  border-bottom: 1px solid var(--line);
-}
-.playground-explainer h2 {
-  margin: 0;
-  font:
-    44px/1 'Instrument Serif',
-    serif;
-}
-.playground-explainer > div:last-child {
-  font-size: 16px;
-  line-height: 1.65;
-}
-.playground-explainer details {
-  margin-top: 24px;
-  padding: 16px 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-.playground-explainer summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-.playground-diagnostics {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: var(--line);
-}
-.playground-formulas {
-  display: grid;
-  gap: 7px;
-  margin: 18px 0;
-  font:
-    17px 'Instrument Serif',
-    serif;
-}
-.playground-diagnostics div {
-  padding: 10px;
-  background: #f4f1e9;
-}
-.playground-diagnostics dt {
-  color: var(--muted);
-  font-size: 10px;
-}
-.playground-diagnostics dd {
-  margin: 4px 0 0;
-  font:
-    18px 'IBM Plex Mono',
-    monospace;
-}
-.playground-footer {
-  min-height: 90px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--muted);
-  font-size: 11px;
-}
-@media (max-width: 850px) {
+@media (max-width: 900px) {
   .playground-header,
-  .playground-page main,
-  .playground-footer {
+  .playground-page main {
     width: min(100% - 28px, 1320px);
-  }
-  .playground-header {
-    height: auto;
-    min-height: 70px;
-    align-items: flex-start;
-    padding: 18px 0;
-    gap: 12px;
-  }
-  .playground-wordmark span {
-    display: none;
-  }
-  .playground-header nav {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 7px 14px;
-  }
-  .playground-intro {
-    display: block;
-    padding: 18px 0;
-  }
-  .playground-intro h1 {
-    font-size: 48px;
-  }
-  .playground-intro-copy {
-    margin-top: 10px;
-    font-size: 13px;
-  }
-  .playground-title-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .playground-runtime-row {
-    text-align: left;
   }
   .playground-layout {
     display: block;
@@ -461,78 +417,88 @@ summary:focus-visible {
   .playground-stage {
     border-right: 0;
     border-bottom: 1px solid var(--line);
-    padding: 8px;
+  }
+  .playground-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .playground-controls section:first-child {
+    grid-row: span 2;
+    border-right: 1px solid var(--line);
+  }
+  #playground-canvas {
+    min-height: 300px;
+  }
+  .playground-layer-key {
+    right: 6px;
+    bottom: 30px;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 560px) {
+  .playground-header {
+    min-height: 58px;
+  }
+  .playground-header nav {
+    gap: 13px;
+  }
+  .playground-intro {
+    display: block;
+    padding: 14px 0;
+  }
+  .playground-intro h1 {
+    font-size: 39px;
+  }
+  .playground-intro > p {
+    margin-top: 9px;
+    font-size: 12px;
+  }
+  .playground-title-row {
+    min-height: 56px;
+    padding: 9px 11px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .playground-title-row h2 {
+    font-size: 21px;
+  }
+  .playground-runtime-row {
+    text-align: left;
+  }
+  .playground-stage {
+    padding: 7px;
   }
   .playground-tools {
-    overflow-x: auto;
+    flex-wrap: wrap;
   }
-  .playground-tools button {
-    flex: 0 0 auto;
+  .playground-toolbar-spacer {
+    flex-basis: 100%;
+    height: 0;
   }
   #playground-canvas {
     min-height: 260px;
-    max-height: none;
+    aspect-ratio: 4/3;
   }
   .playground-transport {
     flex-wrap: wrap;
   }
   #playground-status {
     flex-basis: 100%;
-    margin: 2px;
-  }
-  .playground-controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-  .playground-controls section {
-    border-right: 1px solid var(--line);
-  }
-  .playground-metrics {
-    grid-template-columns: 1fr 1fr;
-  }
-  .playground-metrics > div:last-child {
-    grid-column: 1/-1;
-    border-top: 1px solid var(--line);
-  }
-  .playground-explainer {
-    display: block;
-    padding: 56px 10px;
-  }
-  .playground-explainer > div:last-child {
-    margin-top: 28px;
-  }
-  .playground-footer {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 24px 0;
-  }
-}
-@media (max-width: 480px) {
-  .playground-header nav a:nth-child(2),
-  .playground-header nav a:last-child {
-    display: none;
-  }
-  .playground-hint {
-    display: none;
-  }
-  .playground-intro h1 {
-    font-size: 41px;
+    text-align: left;
+    margin: 1px;
   }
   .playground-controls {
     display: block;
   }
-  .playground-controls section {
+  .playground-controls section:first-child {
     border-right: 0;
   }
   .playground-metrics {
-    display: block;
+    grid-template-columns: 1fr 1.4fr;
   }
-  .playground-metrics > div {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .playground-diagnostics {
-    grid-template-columns: 1fr;
+  .playground-metrics small {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

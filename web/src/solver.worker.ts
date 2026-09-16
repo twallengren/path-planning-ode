@@ -1,47 +1,84 @@
 /// <reference lib="webworker" />
 import type { PyodideAPI } from 'pyodide';
-import type { Scene, Bounds, TerrainScenario, TerrainConfig } from './types';
 
-let runtime: PyodideAPI;
-let terrainReady = false;
-let playgroundReady = false;
 const context = self as unknown as DedicatedWorkerGlobalScope;
-context.onmessage = async ({
-  data,
-}: MessageEvent<{
-  id: number;
-  action: string;
-  scene?: Scene | TerrainScenario;
-  bounds?: Bounds;
-  base?: string;
-  family?: string;
-  seed?: number;
-  contrast?: number;
-  barriers?: boolean;
-  wallMode?: 'soft' | 'hard';
-  wallMultiplier?: number;
-  configs?: TerrainConfig[];
-  revision?: number;
-  strokes?: unknown[];
-  width?: number;
-  height?: number;
-  paths?: number[][][];
-  path?: number[][];
-  settings?: Record<string, unknown>;
-  pin?: { index: number; position: number[] } | null;
-  iterations?: number;
-}>) => {
-  const { id, action, scene, bounds } = data;
+let runtime: PyodideAPI;
+let baseUrl = '';
+let playgroundReady = false;
+let terrainReady = false;
+let residentRevision = -1;
+
+const GAUSSIAN_FILES = [
+  '__init__.py',
+  'core.py',
+  'presets.py',
+  'field_adapter.py',
+  'playground.py',
+];
+const TERRAIN_FILES = [
+  'terrain.py',
+  'soft_walls.py',
+  'terrain_generators.py',
+  'data/__init__.py',
+  'data/mount_tamalpais.json',
+  'data/mount_tamalpais.provenance.json',
+];
+
+async function installFiles(files: string[]) {
+  runtime.FS.mkdirTree('/home/pyodide/path_planning_ode');
+  for (const name of files) {
+    const response = await fetch(new URL(`python/path_planning_ode/${name}`, baseUrl));
+    if (!response.ok) throw new Error(`Could not load solver module ${name}.`);
+    const parts = name.split('/');
+    if (parts.length > 1)
+      runtime.FS.mkdirTree(`/home/pyodide/path_planning_ode/${parts.slice(0, -1).join('/')}`);
+    runtime.FS.writeFile(
+      `/home/pyodide/path_planning_ode/${name}`,
+      new Uint8Array(await response.arrayBuffer()),
+    );
+  }
+}
+
+async function ensureTerrain() {
+  if (terrainReady) return;
+  context.postMessage({ progress: 'Loading terrain tools…' });
   try {
-    if (action === 'boot' || action === 'terrainBoot' || action === 'playgroundBoot') {
-      context.postMessage({ progress: 'Loading Python runtime…' });
-      // Emscripten can leave its initialization promise pending after a fetch fails.
-      // Forward bootstrap network failures directly so the UI can terminate/retry.
+    await runtime.loadPackage(['scipy', 'shapely']);
+    await installFiles(TERRAIN_FILES);
+    runtime.runPython(`
+from path_planning_ode.terrain import TerrainScenario
+from path_planning_ode.field_adapter import terrain_to_playground_field
+`);
+    terrainReady = true;
+    context.postMessage({ progress: 'Ready · runs on this device' });
+  } catch (error) {
+    context.postMessage({
+      progress: 'Ready for Gaussian scenes · terrain tools unavailable',
+    });
+    throw error;
+  }
+}
+
+function setJson(name: string, value: unknown) {
+  runtime.globals.set(name, JSON.stringify(value));
+}
+
+function pythonJson(source: string) {
+  return JSON.parse(runtime.runPython(source));
+}
+
+context.onmessage = async ({ data }: MessageEvent<Record<string, any>>) => {
+  const id = data.id as number,
+    action = String(data.action);
+  try {
+    if (action === 'playgroundBoot') {
+      baseUrl = String(data.base);
+      context.postMessage({ progress: 'Loading solver…' });
       const originalFetch = context.fetch.bind(context);
       context.fetch = async (...args: Parameters<typeof fetch>) => {
         try {
           const response = await originalFetch(...args);
-          if (!response.ok) throw new Error(`Runtime download failed (HTTP ${response.status}).`);
+          if (!response.ok) throw new Error(`Download failed (HTTP ${response.status}).`);
           return response;
         } catch (error) {
           context.postMessage({ id, error: `Runtime download failed. ${String(error)}` });
@@ -49,190 +86,235 @@ context.onmessage = async ({
         }
       };
       const { loadPyodide } = await import(
-        /* @vite-ignore */ new URL('runtime/pyodide.mjs', data.base).href
+        /* @vite-ignore */ new URL('runtime/pyodide.mjs', baseUrl).href
       );
-      runtime = await loadPyodide({ indexURL: new URL('runtime/', data.base).href });
+      runtime = await loadPyodide({ indexURL: new URL('runtime/', baseUrl).href });
       context.postMessage({ progress: 'Loading NumPy…' });
       await runtime.loadPackage('numpy');
-      runtime.FS.mkdirTree('/home/pyodide/path_planning_ode');
-      const files =
-        action === 'terrainBoot'
-          ? ((await (await fetch(new URL('python-manifest.json', data.base))).json()) as string[])
-          : action === 'playgroundBoot'
-            ? ['__init__.py', 'core.py', 'presets.py', 'playground.py']
-            : ['__init__.py', 'core.py', 'presets.py'];
-      for (const name of files) {
-        const response = await fetch(new URL(`python/path_planning_ode/${name}`, data.base));
-        if (!response.ok) throw new Error('Could not load the solver package.');
-        const parts = name.split('/');
-        if (parts.length > 1)
-          runtime.FS.mkdirTree(`/home/pyodide/path_planning_ode/${parts.slice(0, -1).join('/')}`);
-        runtime.FS.writeFile(`/home/pyodide/path_planning_ode/${name}`, await response.text());
-      }
-      if (action === 'terrainBoot') {
-        context.postMessage({ progress: 'Loading SciPy and geometry tools…' });
-        await runtime.loadPackage(['scipy', 'shapely']);
-        runtime.runPython(
-          'import json, numpy as np\nfrom path_planning_ode.terrain import TerrainScenario, PlannerConfig\nfrom path_planning_ode.terrain_generators import synthetic_terrain, mount_tamalpais_terrain\nfrom path_planning_ode.soft_walls import soften_walls\nfrom path_planning_ode.planners import plan, scene_to_terrain_scenario',
-        );
-        terrainReady = true;
-      } else if (action === 'playgroundBoot') {
-        runtime.runPython(`
+      await installFiles(GAUSSIAN_FILES);
+      runtime.runPython(`
 import json, numpy as np
-from path_planning_ode import cost_field
+from dataclasses import asdict
 from path_planning_ode.core import Obstacle
-from path_planning_ode.playground import PlaygroundOptions, advance_playground, build_playground_field, evaluate_playground, initialize_playground
+from path_planning_ode.field_adapter import PlaygroundField, build_playground_preset
+from path_planning_ode.playground import (
+    MAX_GAUSSIANS, PlaygroundOptions, advance_playground, build_playground_field,
+    evaluate_playground, initialize_playground,
+)
+
+def playground_field_from_scene(scene):
+    explicit = tuple(Obstacle(**item) for item in scene.get('gaussians', ()))
+    painted = build_playground_field(scene.get('strokes', ()))['obstacles']
+    combined = explicit + tuple(Obstacle(**item) for item in painted)
+    if len(combined) > MAX_GAUSSIANS:
+        raise ValueError(f'Field requires {len(combined)} Gaussian bumps; maximum is {MAX_GAUSSIANS}.')
+    bounds = scene['bounds']
+    terrain_bounds = [bounds[0], bounds[2], bounds[1], bounds[3]]
+    return PlaygroundField.from_spec(scene['base_field'], combined, bounds=terrain_bounds), explicit, combined
+
+def playground_options(settings, interior_points=None):
+    return PlaygroundOptions(
+        interior_points=settings.get('interior_points', interior_points),
+        method='auto',
+        tolerance=settings.get('tolerance', 1e-5),
+        max_iterations=settings.get('max_iterations', 2000),
+    )
 
 def playground_payload(state, revision):
     item = state.to_dict()
     metrics = dict(item['metrics'])
-    metrics.update(iteration=item['iteration'], status=item['status'], elapsed_seconds=item['elapsed_seconds'])
-    return {'revision': revision, 'path': item['path'], 'metrics': metrics, 'state': item}
+    metrics.update(
+        iteration=item['iteration'], status=item['status'], elapsed_seconds=item['elapsed_seconds'],
+        phase=item['phase'], phase_reason=item['phase_reason'],
+    )
+    return {
+        'revision': revision, 'path': item['path'], 'metrics': metrics,
+        'state': {
+            'resident': True, 'revision': revision, 'pin_index': item['pin_index'],
+            'phase': item['phase'], 'field_hash': item['field_hash'],
+        },
+    }
 `);
-        playgroundReady = true;
-      } else {
-        runtime.runPython(
-          'import json, numpy as np\nfrom path_planning_ode import Scene, initialize, step, cost_field, weighted_distance',
-        );
-      }
       context.fetch = originalFetch;
+      playgroundReady = true;
       context.postMessage({ id, result: {} });
-    } else if (action === 'playgroundField') {
-      if (!playgroundReady) throw new Error('Playground runtime is not ready.');
-      runtime.globals.set('playground_strokes_json', JSON.stringify(data.strokes));
-      runtime.globals.set('playground_bounds_json', JSON.stringify(data.bounds));
-      runtime.globals.set('playground_paths_json', JSON.stringify(data.paths ?? []));
-      runtime.globals.set('playground_grid_width', data.width ?? 120);
-      runtime.globals.set('playground_grid_height', data.height ?? 80);
+      return;
+    }
+    if (!playgroundReady) throw new Error('Playground runtime is not ready.');
+
+    if (action === 'playgroundPreset') {
+      const name = String(data.name);
+      if (!['blank', 'random_hills', 'corridor', 'slalom'].includes(name)) await ensureTerrain();
+      runtime.globals.set('playground_preset_name', name);
+      runtime.globals.set('playground_seed_value', data.seed);
       runtime.globals.set('playground_revision_value', data.revision ?? 0);
-      const result = runtime.runPython(`
-playground_field_data = build_playground_field(json.loads(playground_strokes_json))
-playground_obstacles = tuple(Obstacle(**item) for item in playground_field_data['obstacles'])
-playground_bounds = json.loads(playground_bounds_json)
+      const result = pythonJson(`
+playground_preset_value = build_playground_preset(playground_preset_name, playground_seed_value)
+json.dumps({'revision': playground_revision_value, 'preset': playground_preset_value}, allow_nan=False)
+`);
+      context.postMessage({ id, result });
+      return;
+    }
+
+    if (action === 'playgroundAdaptTerrain') {
+      await ensureTerrain();
+      setJson('playground_terrain_json', data.scenario);
+      runtime.globals.set('playground_revision_value', data.revision ?? 0);
+      const result = pythonJson(`
+playground_source_terrain = TerrainScenario.from_dict(json.loads(playground_terrain_json))
+playground_had_barriers = bool(playground_source_terrain.barriers_geojson)
+playground_adapted_field = terrain_to_playground_field(playground_source_terrain, soften_barriers=True)
+playground_adapted_scenario = playground_adapted_field.base_spec['scenario']
+playground_terrain_bounds = playground_adapted_scenario['bounds_m']
+playground_terrain_preset = {
+    'name': 'imported',
+    'bounds': [playground_terrain_bounds[0], playground_terrain_bounds[2], playground_terrain_bounds[1], playground_terrain_bounds[3]],
+    'start': playground_adapted_scenario['start_m'],
+    'end': playground_adapted_scenario['goal_m'],
+    'base_field': playground_adapted_field.base_spec,
+    'gaussians': [], 'strokes': [],
+    'metadata': {
+        'kind': 'terrain', 'preset': 'imported', 'seed': None,
+        'scenario_hash': playground_adapted_field.base_spec['scenario_hash'],
+        'soft_walls': playground_adapted_scenario.get('metadata', {}).get('soft_walls'),
+        'imported_from': 'terrain-v2',
+    },
+}
+json.dumps({
+    'revision': playground_revision_value,
+    'preset': playground_terrain_preset,
+    'message': (
+        'Terrain v2 imported. Hard barriers were converted to finite soft walls.'
+        if playground_had_barriers else 'Terrain v2 imported.'
+    ),
+}, allow_nan=False)
+`);
+      context.postMessage({ id, result });
+      return;
+    }
+
+    if (action === 'playgroundField') {
+      if (data.scene?.base_field?.kind === 'terrain') await ensureTerrain();
+      setJson('playground_scene_json', data.scene);
+      setJson('playground_paths_json', data.paths ?? []);
+      runtime.globals.set('playground_grid_width', data.width ?? 144);
+      runtime.globals.set('playground_grid_height', data.height ?? 96);
+      runtime.globals.set('playground_revision_value', data.revision ?? 0);
+      const result = pythonJson(`
+playground_scene_data = json.loads(playground_scene_json)
+playground_analytic_field, playground_explicit, playground_combined = playground_field_from_scene(playground_scene_data)
+playground_bounds = playground_scene_data['bounds']
 playground_xx, playground_yy = np.meshgrid(
     np.linspace(playground_bounds[0], playground_bounds[1], playground_grid_width),
     np.linspace(playground_bounds[3], playground_bounds[2], playground_grid_height),
 )
-playground_field_values = cost_field(np.stack([playground_xx, playground_yy], axis=-1), playground_obstacles).ravel().tolist()
+playground_grid_points = np.stack([playground_xx, playground_yy], axis=-1)
+playground_field_values = playground_analytic_field.cost(playground_grid_points).ravel().tolist()
+playground_elevation_values = playground_analytic_field.elevation(playground_grid_points).ravel()
 playground_costs = []
 for playground_path_item in json.loads(playground_paths_json):
-    playground_options_item = PlaygroundOptions(interior_points=len(playground_path_item) - 2)
-    playground_costs.append(evaluate_playground(playground_path_item, playground_obstacles, options=playground_options_item).route_cost)
+    playground_options_item = PlaygroundOptions(interior_points=len(playground_path_item) - 2, method='auto')
+    playground_costs.append(evaluate_playground(playground_path_item, field=playground_analytic_field, options=playground_options_item).route_cost)
 json.dumps({
-    'revision': playground_revision_value,
-    'bounds': playground_bounds,
-    'width': playground_grid_width,
-    'height': playground_grid_height,
+    'revision': playground_revision_value, 'bounds': playground_bounds,
+    'width': playground_grid_width, 'height': playground_grid_height,
     'field': playground_field_values,
-    'gaussians': playground_field_data['obstacles'],
+    'field_min': float(np.min(playground_field_values)),
+    'field_max': float(np.max(playground_field_values)),
+    'elevation': playground_elevation_values.tolist(),
+    'elevation_min': float(np.min(playground_elevation_values)),
+    'elevation_max': float(np.max(playground_elevation_values)),
+    'gaussians': [asdict(item) for item in playground_explicit],
+    'obstacles': [asdict(item) for item in playground_combined],
     'ghost_costs': playground_costs,
+    'field_hash': playground_analytic_field.field_hash,
 }, allow_nan=False)
 `);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'playgroundInitialize') {
-      if (!playgroundReady) throw new Error('Playground runtime is not ready.');
-      runtime.globals.set('playground_scene_json', JSON.stringify(data.scene));
-      runtime.globals.set('playground_path_json', JSON.stringify(data.path));
-      runtime.globals.set('playground_settings_json', JSON.stringify(data.settings));
-      runtime.globals.set('playground_pin_json', JSON.stringify(data.pin ?? null));
+      context.postMessage({ id, result });
+      return;
+    }
+
+    if (action === 'playgroundInitialize') {
+      if (data.scene?.base_field?.kind === 'terrain') await ensureTerrain();
+      setJson('playground_scene_json', data.scene);
+      setJson('playground_path_json', data.path);
+      setJson('playground_settings_json', data.settings);
+      setJson('playground_pin_json', data.pin ?? null);
       runtime.globals.set('playground_revision_value', data.revision ?? 0);
-      const result = runtime.runPython(`
+      const result = pythonJson(`
 playground_scene_data = json.loads(playground_scene_json)
 playground_settings_data = json.loads(playground_settings_json)
 playground_pin_data = json.loads(playground_pin_json)
-playground_obstacles = tuple(Obstacle(**item) for item in playground_scene_data['obstacles'])
-playground_options = PlaygroundOptions(
-    interior_points=playground_settings_data['interior_points'],
-    method=playground_settings_data['method'],
-    tolerance=playground_settings_data['tolerance'],
-)
+playground_analytic_field, _, _ = playground_field_from_scene(playground_scene_data)
+playground_options_value = playground_options(playground_settings_data)
 playground_state = initialize_playground(
-    playground_scene_data['start'],
-    playground_scene_data['end'],
-    playground_obstacles,
-    path=json.loads(playground_path_json),
-    options=playground_options,
+    playground_scene_data['start'], playground_scene_data['end'],
+    field=playground_analytic_field, path=json.loads(playground_path_json), options=playground_options_value,
     pin_index=playground_pin_data['index'] if playground_pin_data else None,
     pin_position=playground_pin_data['position'] if playground_pin_data else None,
 )
 json.dumps(playground_payload(playground_state, playground_revision_value), allow_nan=False)
 `);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'playgroundEvaluate') {
-      if (!playgroundReady) throw new Error('Playground runtime is not ready.');
-      runtime.globals.set('playground_paths_json', JSON.stringify(data.paths ?? []));
-      runtime.globals.set('playground_revision_value', data.revision ?? 0);
-      const result = runtime.runPython(`
-playground_costs = []
-for playground_path_item in json.loads(playground_paths_json):
-    playground_options_item = PlaygroundOptions(interior_points=len(playground_path_item) - 2)
-    playground_costs.append(evaluate_playground(playground_path_item, playground_obstacles, options=playground_options_item).route_cost)
-json.dumps({'revision': playground_revision_value, 'ghost_costs': playground_costs}, allow_nan=False)
+      residentRevision = data.revision ?? 0;
+      context.postMessage({ id, result });
+      return;
+    }
+
+    if (action === 'playgroundStep') {
+      const revision = data.revision ?? 0;
+      const iterations = data.iterations ?? 1;
+      if (!Number.isInteger(iterations) || iterations < 1 || iterations > 20)
+        throw new Error('Step iterations must be an integer from 1 through 20.');
+      runtime.globals.set('playground_revision_value', revision);
+      runtime.globals.set('playground_iterations_value', iterations);
+      if (revision !== residentRevision) {
+        if (data.scene?.base_field?.kind === 'terrain') await ensureTerrain();
+        setJson('playground_scene_json', data.scene);
+        setJson('playground_path_json', data.path);
+        setJson('playground_settings_json', data.settings);
+        setJson('playground_pin_json', data.pin ?? null);
+        runtime.runPython(`
+playground_scene_data = json.loads(playground_scene_json)
+playground_settings_data = json.loads(playground_settings_json)
+playground_pin_data = json.loads(playground_pin_json)
+playground_analytic_field, _, _ = playground_field_from_scene(playground_scene_data)
+playground_state = initialize_playground(
+    playground_scene_data['start'], playground_scene_data['end'],
+    field=playground_analytic_field, path=json.loads(playground_path_json),
+    options=playground_options(playground_settings_data),
+    pin_index=playground_pin_data['index'] if playground_pin_data else None,
+    pin_position=playground_pin_data['position'] if playground_pin_data else None,
+)
 `);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'playgroundStep') {
-      if (!playgroundReady) throw new Error('Playground runtime is not ready.');
-      runtime.globals.set('playground_revision_value', data.revision ?? 0);
-      runtime.globals.set('playground_iterations_value', data.iterations ?? 1);
-      const result = runtime.runPython(`
+        residentRevision = revision;
+      }
+      const result = pythonJson(`
 playground_state = advance_playground(playground_state, iterations=playground_iterations_value)
 json.dumps(playground_payload(playground_state, playground_revision_value), allow_nan=False)
 `);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'initialize') {
-      runtime.globals.set('scene_json', JSON.stringify(scene));
-      runtime.globals.set('bounds_json', JSON.stringify(bounds));
-      const result = runtime.runPython(`
-scene = Scene.from_dict(json.loads(scene_json))
-states = {guess: initialize(scene, guess) for guess in scene.guesses}
-bounds = json.loads(bounds_json)
-xx, yy = np.meshgrid(np.linspace(bounds[0], bounds[1], 90), np.linspace(bounds[2], bounds[3], 90))
-field = cost_field(np.stack([xx, yy], axis=-1), scene.obstacles).ravel().tolist()
-json.dumps({'states': {k: v.to_dict() for k, v in states.items()}, 'field': field, 'bounds': bounds, 'straight_cost': weighted_distance(np.array([scene.start, scene.end]), scene)}, allow_nan=False)
-`);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'step') {
-      const result = runtime.runPython(`
-states = {k: step(scene, v) for k, v in states.items()}
-json.dumps({'states': {k: v.to_dict() for k, v in states.items()}}, allow_nan=False)
-`);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'terrainGenerate') {
-      if (!terrainReady) throw new Error('Terrain runtime is not ready.');
-      runtime.globals.set('family_name', data.family);
-      runtime.globals.set('terrain_seed', data.seed);
-      runtime.globals.set('terrain_contrast', data.contrast);
-      runtime.globals.set('terrain_barriers', data.barriers);
-      runtime.globals.set('terrain_wall_mode', data.wallMode);
-      runtime.globals.set('terrain_wall_multiplier', data.wallMultiplier);
-      const result = runtime.runPython(`
-generated_terrain = mount_tamalpais_terrain(contrast=terrain_contrast, barriers=terrain_barriers) if family_name == 'mount_tamalpais' else synthetic_terrain(family_name, seed=terrain_seed, contrast=terrain_contrast, barriers=terrain_barriers)
-if terrain_wall_mode == 'soft':
-    generated_terrain = soften_walls(generated_terrain, multiplier=terrain_wall_multiplier)
-json.dumps(generated_terrain.to_dict(), allow_nan=False)
-`);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'terrainSolve') {
-      if (!terrainReady) throw new Error('Terrain runtime is not ready.');
-      runtime.globals.set('terrain_scene_json', JSON.stringify(data.scene));
-      runtime.globals.set('terrain_configs_json', JSON.stringify(data.configs));
-      const result = runtime.runPython(`
-terrain_scene = TerrainScenario.from_dict(json.loads(terrain_scene_json))
-terrain_configs = [PlannerConfig.from_dict(item) for item in json.loads(terrain_configs_json)]
-json.dumps([plan(terrain_scene, item).to_dict() for item in terrain_configs], allow_nan=False)
-`);
-      context.postMessage({ id, result: JSON.parse(result) });
-    } else if (action === 'terrainAdaptV1') {
-      if (!terrainReady) throw new Error('Terrain runtime is not ready.');
-      runtime.globals.set('legacy_scene_json', JSON.stringify(data.scene));
-      const result = runtime.runPython(`
-from path_planning_ode import Scene as LegacyScene
-legacy = LegacyScene.from_dict(json.loads(legacy_scene_json))
-adapted = scene_to_terrain_scenario(legacy)
-json.dumps(adapted.to_dict(), allow_nan=False)
-`);
-      context.postMessage({ id, result: JSON.parse(result) });
+      context.postMessage({ id, result });
+      return;
     }
+
+    if (action === 'playgroundEvaluate') {
+      if (data.scene?.base_field?.kind === 'terrain') await ensureTerrain();
+      setJson('playground_scene_json', data.scene);
+      setJson('playground_paths_json', data.paths ?? []);
+      runtime.globals.set('playground_revision_value', data.revision ?? 0);
+      const result = pythonJson(`
+playground_scene_data = json.loads(playground_scene_json)
+playground_analytic_field, _, _ = playground_field_from_scene(playground_scene_data)
+playground_costs = []
+for playground_path_item in json.loads(playground_paths_json):
+    playground_options_item = PlaygroundOptions(interior_points=len(playground_path_item) - 2, method='auto')
+    playground_costs.append(evaluate_playground(playground_path_item, field=playground_analytic_field, options=playground_options_item).route_cost)
+json.dumps({'revision': playground_revision_value, 'ghost_costs': playground_costs}, allow_nan=False)
+`);
+      context.postMessage({ id, result });
+      return;
+    }
+
+    throw new Error(`Unknown worker action: ${action}`);
   } catch (error) {
     context.postMessage({ id, error: error instanceof Error ? error.message : String(error) });
   }

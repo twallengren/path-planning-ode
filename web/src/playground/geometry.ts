@@ -76,7 +76,12 @@ export function strokeHit(stroke: Stroke, point: Point, padding = 0) {
   );
 }
 
-export function movePathNeighborhood(path: Point[], index: number, position: Point): Point[] {
+export function movePathNeighborhood(
+  path: Point[],
+  index: number,
+  position: Point,
+  bounds?: Bounds,
+): Point[] {
   const result = path.map(([x, y]) => [x, y] as Point),
     delta: Point = [position[0] - result[index][0], position[1] - result[index][1]],
     radius = Math.max(2, Math.round((path.length - 2) * 0.1));
@@ -84,11 +89,12 @@ export function movePathNeighborhood(path: Point[], index: number, position: Poi
     const candidate = index + offset;
     if (candidate <= 0 || candidate >= result.length - 1) continue;
     const weight = 0.5 + 0.5 * Math.cos((Math.PI * Math.abs(offset)) / (radius + 1));
-    result[candidate] = [
+    const moved: Point = [
       result[candidate][0] + weight * delta[0],
       result[candidate][1] + weight * delta[1],
     ];
+    result[candidate] = bounds ? clampToBounds(moved, bounds) : moved;
   }
-  result[index] = position;
+  result[index] = bounds ? clampToBounds(position, bounds) : position;
   return result;
 }

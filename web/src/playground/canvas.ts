@@ -1,17 +1,27 @@
 import { distance } from './geometry';
-import type { Bounds, GhostRoute, PlaygroundScene, Point, Stroke } from './types';
+import type { GhostRoute, PlaygroundScene, Point, Stroke } from './types';
 
 const COLORS = {
   ink: '#203930',
   route: '#125f56',
-  routeHalo: '#f7f4ec',
+  routeHalo: '#fffdf7',
   ghost: '#8b7665',
   start: '#17695e',
   end: '#bf5b35',
+  hill: '#9c5d32',
+};
+
+type View = {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+  drawWidth: number;
+  drawHeight: number;
 };
 
 export class PlaygroundCanvas {
   field: number[] = [];
+  elevation: number[] = [];
   fieldWidth = 0;
   fieldHeight = 0;
   scene: PlaygroundScene;
@@ -20,9 +30,12 @@ export class PlaygroundCanvas {
   previousPath: Point[] | null = null;
   showPrevious = false;
   showPoints = false;
+  showElevation = false;
   activeStroke: Stroke | null = null;
   heldIndex: number | null = null;
-  private background = document.createElement('canvas');
+  heldGaussian: number | null = null;
+  private readonly costBackground = document.createElement('canvas');
+  private readonly elevationBackground = document.createElement('canvas');
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -35,16 +48,19 @@ export class PlaygroundCanvas {
     canvas.setAttribute('role', 'application');
     canvas.setAttribute(
       'aria-label',
-      'Path playground. Choose grab, paint, or erase, then drag on the canvas. Arrow keys move the focused path point.',
+      'Path playground. Choose grab, paint, or erase, then drag on the canvas. Arrow keys move the selected target.',
     );
     new ResizeObserver(() => this.draw()).observe(canvas);
   }
 
-  setField(values: number[], width: number, height: number) {
+  setField(values: number[], width: number, height: number, elevation: number[] = []) {
     this.field = values;
+    this.elevation = elevation;
     this.fieldWidth = width;
     this.fieldHeight = height;
-    this.paintField();
+    this.paintRaster(this.costBackground, values, width, height, false);
+    if (elevation.length)
+      this.paintRaster(this.elevationBackground, elevation, width, height, true);
   }
 
   private resize() {
@@ -59,54 +75,108 @@ export class PlaygroundCanvas {
     return { ctx: this.canvas.getContext('2d')!, width, height, ratio };
   }
 
+  private view(width: number, height: number): View {
+    const [xmin, xmax, ymin, ymax] = this.scene.bounds,
+      worldWidth = xmax - xmin,
+      worldHeight = ymax - ymin,
+      scale = Math.min(width / worldWidth, height / worldHeight),
+      drawWidth = worldWidth * scale,
+      drawHeight = worldHeight * scale;
+    return {
+      scale,
+      drawWidth,
+      drawHeight,
+      offsetX: (width - drawWidth) / 2,
+      offsetY: (height - drawHeight) / 2,
+    };
+  }
+
   fromClient(clientX: number, clientY: number): Point {
     const rect = this.canvas.getBoundingClientRect(),
-      [xmin, xmax, ymin, ymax] = this.scene.bounds;
+      ratioX = this.canvas.width / Math.max(1, rect.width),
+      ratioY = this.canvas.height / Math.max(1, rect.height),
+      pixelX = (clientX - rect.left) * ratioX,
+      pixelY = (clientY - rect.top) * ratioY,
+      view = this.view(this.canvas.width, this.canvas.height),
+      [xmin, , , ymax] = this.scene.bounds;
     return [
-      xmin + ((clientX - rect.left) / rect.width) * (xmax - xmin),
-      ymax - ((clientY - rect.top) / rect.height) * (ymax - ymin),
+      xmin + (pixelX - view.offsetX) / view.scale,
+      ymax - (pixelY - view.offsetY) / view.scale,
     ];
   }
 
   private toPixel(point: Point, width: number, height: number): Point {
-    const [xmin, xmax, ymin, ymax] = this.scene.bounds;
+    const view = this.view(width, height),
+      [xmin, , , ymax] = this.scene.bounds;
     return [
-      ((point[0] - xmin) / (xmax - xmin)) * width,
-      ((ymax - point[1]) / (ymax - ymin)) * height,
+      view.offsetX + (point[0] - xmin) * view.scale,
+      view.offsetY + (ymax - point[1]) * view.scale,
     ];
   }
 
   modelRadiusFromPixels(pixels: number) {
-    const rect = this.canvas.getBoundingClientRect();
-    return (pixels / Math.max(1, rect.width)) * (this.scene.bounds[1] - this.scene.bounds[0]);
+    const rect = this.canvas.getBoundingClientRect(),
+      view = this.view(rect.width, rect.height);
+    return pixels / view.scale;
   }
 
-  private paintField() {
-    if (!this.field.length || !this.fieldWidth || !this.fieldHeight) return;
-    this.background.width = this.fieldWidth;
-    this.background.height = this.fieldHeight;
-    const ctx = this.background.getContext('2d')!,
-      image = ctx.createImageData(this.fieldWidth, this.fieldHeight),
-      max = Math.max(1, ...this.field),
-      logMax = Math.log1p(max - 1);
-    for (let index = 0; index < this.field.length; index++) {
-      const t = logMax ? Math.log1p(Math.max(0, this.field[index] - 1)) / logMax : 0;
-      image.data[index * 4] = 246 - 35 * t;
-      image.data[index * 4 + 1] = 244 - 91 * t;
-      image.data[index * 4 + 2] = 235 - 119 * t;
+  private paintRaster(
+    target: HTMLCanvasElement,
+    values: number[],
+    width: number,
+    height: number,
+    elevation: boolean,
+  ) {
+    if (!values.length || !width || !height) return;
+    target.width = width;
+    target.height = height;
+    const sorted = values.filter(Number.isFinite).sort((a, b) => a - b),
+      low = sorted[Math.floor(sorted.length * 0.02)] ?? 0,
+      high = sorted[Math.floor(sorted.length * 0.98)] ?? low + 1,
+      span = Math.max(Number.EPSILON, high - low),
+      ctx = target.getContext('2d')!,
+      image = ctx.createImageData(width, height);
+    for (let index = 0; index < values.length; index++) {
+      const raw = Math.max(0, Math.min(1, (values[index] - low) / span)),
+        t = elevation ? raw : Math.log1p(9 * raw) / Math.log(10);
+      if (elevation) {
+        image.data[index * 4] = 228 - 91 * t;
+        image.data[index * 4 + 1] = 230 - 64 * t;
+        image.data[index * 4 + 2] = 211 - 94 * t;
+      } else {
+        image.data[index * 4] = 247 - 44 * t;
+        image.data[index * 4 + 1] = 244 - 105 * t;
+        image.data[index * 4 + 2] = 233 - 126 * t;
+      }
       image.data[index * 4 + 3] = 255;
     }
     ctx.putImageData(image, 0, 0);
   }
 
   draw() {
-    const { ctx, width, height, ratio } = this.resize();
+    const { ctx, width, height, ratio } = this.resize(),
+      view = this.view(width, height);
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#f3f1e9';
+    ctx.fillStyle = '#e8e5dc';
     ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = '#f3f1e9';
+    ctx.fillRect(view.offsetX, view.offsetY, view.drawWidth, view.drawHeight);
+    const raster =
+      this.showElevation && this.elevation.length ? this.elevationBackground : this.costBackground;
     if (this.field.length)
-      ctx.drawImage(this.background, 0, 0, this.fieldWidth, this.fieldHeight, 0, 0, width, height);
-    this.drawGrid(ctx, width, height, ratio);
+      ctx.drawImage(
+        raster,
+        0,
+        0,
+        this.fieldWidth,
+        this.fieldHeight,
+        view.offsetX,
+        view.offsetY,
+        view.drawWidth,
+        view.drawHeight,
+      );
+    this.drawGrid(ctx, view, ratio);
+    this.drawGaussians(ctx, width, height, ratio, view.scale);
     for (const ghost of this.ghosts)
       this.drawPath(ctx, ghost.path, width, height, COLORS.ghost, 1.5 * ratio, [
         6 * ratio,
@@ -128,33 +198,60 @@ export class PlaygroundCanvas {
         ctx.fill();
       }
     }
-    if (this.activeStroke) this.drawStrokeOverlay(ctx, this.activeStroke, width, height, ratio);
+    if (this.activeStroke)
+      this.drawStrokeOverlay(ctx, this.activeStroke, width, height, ratio, view.scale);
     this.drawEndpoints(ctx, width, height, ratio);
-    if (this.heldIndex !== null) {
-      const [x, y] = this.toPixel(this.path[this.heldIndex], width, height);
-      ctx.strokeStyle = COLORS.ink;
-      ctx.lineWidth = 1.5 * ratio;
-      ctx.beginPath();
-      ctx.arc(x, y, 8 * ratio, 0, Math.PI * 2);
-      ctx.stroke();
+    if (this.heldIndex !== null)
+      this.drawHeld(ctx, this.path[this.heldIndex], width, height, ratio);
+    if (this.heldGaussian !== null) {
+      const hill = this.scene.gaussians[this.heldGaussian];
+      if (hill) this.drawHeld(ctx, [hill.x, hill.y], width, height, ratio);
     }
   }
 
-  private drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, ratio: number) {
-    ctx.strokeStyle = 'rgba(50,70,60,.13)';
+  private drawGrid(ctx: CanvasRenderingContext2D, view: View, ratio: number) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(50,70,60,.11)';
     ctx.lineWidth = ratio;
     for (let i = 1; i < 12; i++) {
+      const x = view.offsetX + (i * view.drawWidth) / 12;
       ctx.beginPath();
-      ctx.moveTo((i * width) / 12, 0);
-      ctx.lineTo((i * width) / 12, height);
+      ctx.moveTo(x, view.offsetY);
+      ctx.lineTo(x, view.offsetY + view.drawHeight);
       ctx.stroke();
     }
     for (let i = 1; i < 8; i++) {
+      const y = view.offsetY + (i * view.drawHeight) / 8;
       ctx.beginPath();
-      ctx.moveTo(0, (i * height) / 8);
-      ctx.lineTo(width, (i * height) / 8);
+      ctx.moveTo(view.offsetX, y);
+      ctx.lineTo(view.offsetX + view.drawWidth, y);
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  private drawGaussians(
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    ratio: number,
+    scale: number,
+  ) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(106,66,39,.45)';
+    ctx.setLineDash([3 * ratio, 4 * ratio]);
+    ctx.lineWidth = ratio;
+    for (const hill of this.scene.gaussians) {
+      const [x, y] = this.toPixel([hill.x, hill.y], width, height);
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(4 * ratio, hill.width * scale), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = COLORS.hill;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5 * ratio, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private drawPath(
@@ -167,6 +264,7 @@ export class PlaygroundCanvas {
     dash: number[] = [],
   ) {
     if (!path.length) return;
+    ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
@@ -179,7 +277,7 @@ export class PlaygroundCanvas {
       else ctx.moveTo(x, y);
     });
     ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   private drawStrokeOverlay(
@@ -188,9 +286,11 @@ export class PlaygroundCanvas {
     width: number,
     height: number,
     ratio: number,
+    scale: number,
   ) {
-    const pixelWidth = (stroke.width / (this.scene.bounds[1] - this.scene.bounds[0])) * width;
-    ctx.globalAlpha = 0.22;
+    const pixelWidth = stroke.width * scale;
+    ctx.save();
+    ctx.globalAlpha = 0.25;
     this.drawPath(
       ctx,
       stroke.points,
@@ -206,7 +306,7 @@ export class PlaygroundCanvas {
       ctx.arc(x, y, pixelWidth, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   private drawEndpoints(
@@ -234,13 +334,39 @@ export class PlaygroundCanvas {
     }
   }
 
-  nearestVisiblePoint(point: Point, includeEndpoints = true) {
+  private drawHeld(
+    ctx: CanvasRenderingContext2D,
+    point: Point,
+    width: number,
+    height: number,
+    ratio: number,
+  ) {
+    const [x, y] = this.toPixel(point, width, height);
+    ctx.strokeStyle = COLORS.ink;
+    ctx.lineWidth = 1.5 * ratio;
+    ctx.beginPath();
+    ctx.arc(x, y, 9 * ratio, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  nearestVisiblePoint(point: Point) {
     let index = -1,
       nearest = Infinity;
     this.path.forEach((candidate, candidateIndex) => {
-      if (!includeEndpoints && (candidateIndex === 0 || candidateIndex === this.path.length - 1))
-        return;
       const d = distance(candidate, point);
+      if (d < nearest) {
+        index = candidateIndex;
+        nearest = d;
+      }
+    });
+    return { index, distance: nearest };
+  }
+
+  nearestGaussian(point: Point) {
+    let index = -1,
+      nearest = Infinity;
+    this.scene.gaussians.forEach((hill, candidateIndex) => {
+      const d = distance([hill.x, hill.y], point);
       if (d < nearest) {
         index = candidateIndex;
         nearest = d;

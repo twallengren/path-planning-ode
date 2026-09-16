@@ -75,7 +75,7 @@ def test_descent_accepts_only_energy_decrease_and_preserves_endpoints():
         path[-1],
         obstacles,
         path=path,
-        options=PlaygroundOptions(interior_points=5),
+        options=PlaygroundOptions(interior_points=5, method="descent"),
     )
     energies = [state.metrics.energy]
     endpoints = state.path[[0, -1]].copy()

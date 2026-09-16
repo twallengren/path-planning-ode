@@ -17,14 +17,13 @@ from functools import lru_cache
 from hashlib import sha256
 from math import isfinite
 from time import perf_counter
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 FloatArray = NDArray[np.float64]
 JSONValue = None | bool | int | float | str | list["JSONValue"] | dict[str, "JSONValue"]
-PlannerMethod = Literal["euler_lagrange", "slsqp", "fast_marching", "energy_descent"]
 
 
 def _json_value(value: Any, *, path: str = "value") -> JSONValue:
@@ -54,8 +53,29 @@ def _json_value(value: Any, *, path: str = "value") -> JSONValue:
 
 
 def _canonical_hash(data: Mapping[str, Any]) -> str:
+    def normalize_numbers(value: JSONValue) -> JSONValue:
+        """Give equivalent JSON numbers one browser-stable representation.
+
+        JavaScript JSON serialization writes integral floats without a decimal
+        point and writes negative zero as zero.  These spellings carry no JSON
+        semantic distinction, so hashes normalize them before encoding.
+        """
+        if isinstance(value, bool) or value is None or isinstance(value, str):
+            return value
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            if value == 0:
+                return 0
+            if value.is_integer():
+                return int(value)
+            return value
+        if isinstance(value, list):
+            return [normalize_numbers(item) for item in value]
+        return {key: normalize_numbers(item) for key, item in value.items()}
+
     payload = json.dumps(
-        _json_value(data),
+        normalize_numbers(_json_value(data)),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=False,
@@ -346,96 +366,6 @@ class TerrainField:
 
 
 @dataclass(frozen=True)
-class PlannerConfig:
-    """Version-2 planner controls shared by native and browser implementations."""
-
-    method: PlannerMethod
-    initialization: str = "straight"
-    interior_points: int = 32
-    reference_grid_size: int = 129
-    tolerance: float = 1e-7
-    max_iterations: int = 1000
-    time_limit_s: float = 60.0
-    profile_samples: int = 129
-    options: dict[str, JSONValue] = field(default_factory=dict)
-    version: int = 2
-
-    def __post_init__(self) -> None:
-        if self.version != 2:
-            raise ValueError("Unsupported planner configuration version; expected 2.")
-        if self.method not in ("euler_lagrange", "slsqp", "fast_marching", "energy_descent"):
-            raise ValueError("Unknown planner method.")
-        if not isinstance(self.initialization, str) or not self.initialization:
-            raise ValueError("initialization must be a non-empty string.")
-        for name in ("interior_points", "max_iterations"):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-                raise ValueError(f"{name} must be a positive integer.")
-        if (
-            isinstance(self.reference_grid_size, bool)
-            or not isinstance(self.reference_grid_size, int)
-            or self.reference_grid_size < 3
-            or self.reference_grid_size % 2 == 0
-        ):
-            raise ValueError("reference_grid_size must be an odd integer of at least 3.")
-        if (
-            isinstance(self.profile_samples, bool)
-            or not isinstance(self.profile_samples, int)
-            or self.profile_samples < 2
-        ):
-            raise ValueError("profile_samples must be an integer of at least 2.")
-        for name in ("tolerance", "time_limit_s"):
-            value = getattr(self, name)
-            if not isfinite(value) or value <= 0:
-                raise ValueError(f"{name} must be finite and positive.")
-        options = _json_value(self.options, path="options")
-        if not isinstance(options, dict):
-            raise ValueError("options must be a JSON object.")
-        object.__setattr__(self, "options", options)
-
-    @property
-    def config_hash(self) -> str:
-        return _canonical_hash(self.to_dict())
-
-    def to_dict(self) -> dict[str, JSONValue]:
-        return {
-            "version": self.version,
-            "method": self.method,
-            "initialization": self.initialization,
-            "interior_points": self.interior_points,
-            "reference_grid_size": self.reference_grid_size,
-            "tolerance": self.tolerance,
-            "max_iterations": self.max_iterations,
-            "time_limit_s": self.time_limit_s,
-            "profile_samples": self.profile_samples,
-            "options": _json_value(self.options),
-        }
-
-    @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "PlannerConfig":
-        if not isinstance(data, Mapping) or data.get("version") != 2:
-            raise ValueError("Expected a version 2 planner configuration object.")
-        allowed = {
-            "version",
-            "method",
-            "initialization",
-            "interior_points",
-            "reference_grid_size",
-            "tolerance",
-            "max_iterations",
-            "time_limit_s",
-            "profile_samples",
-            "options",
-        }
-        if set(data) - allowed:
-            raise ValueError("Planner configuration contains unknown fields.")
-        try:
-            return cls(**data)
-        except TypeError as exc:
-            raise ValueError("Malformed planner configuration.") from exc
-
-
-@dataclass(frozen=True)
 class RouteEvaluation:
     """Independent measurements and feasibility decision for a complete route."""
 
@@ -517,144 +447,6 @@ class RouteEvaluation:
             )
         except (KeyError, TypeError) as exc:
             raise ValueError("Malformed route evaluation.") from exc
-
-
-@dataclass(frozen=True)
-class PlannerResult:
-    """One planner outcome with solver and independent evaluation kept separate."""
-
-    method: PlannerMethod
-    initialization: str
-    route_m: tuple[tuple[float, float], ...] | None
-    evaluated_cost_s: float | None
-    feasible: bool
-    solver_success: bool
-    termination_reason: str
-    diagnostics: dict[str, JSONValue]
-    timing_s: dict[str, float]
-    scenario_hash: str
-    config_hash: str
-    evaluation: RouteEvaluation | None = None
-    version: int = 2
-
-    def __post_init__(self) -> None:
-        if self.version != 2:
-            raise ValueError("Unsupported planner result version; expected 2.")
-        if self.method not in ("euler_lagrange", "slsqp", "fast_marching", "energy_descent"):
-            raise ValueError("Unknown planner method.")
-        if not isinstance(self.initialization, str) or not self.initialization:
-            raise ValueError("initialization must be a non-empty string.")
-        if not isinstance(self.termination_reason, str) or not self.termination_reason:
-            raise ValueError("termination_reason must be a non-empty string.")
-        if self.route_m is not None:
-            route = np.asarray(self.route_m, dtype=float)
-            if (
-                route.ndim != 2
-                or route.shape[1] != 2
-                or len(route) < 2
-                or not np.isfinite(route).all()
-            ):
-                raise ValueError("route_m must be None or a finite array with shape (n >= 2, 2).")
-            object.__setattr__(
-                self, "route_m", tuple(tuple(float(v) for v in row) for row in route)
-            )
-        if self.evaluated_cost_s is not None and (
-            not isfinite(self.evaluated_cost_s) or self.evaluated_cost_s < 0
-        ):
-            raise ValueError("evaluated_cost_s must be None or finite and nonnegative.")
-        diagnostics = _json_value(self.diagnostics, path="diagnostics")
-        if not isinstance(diagnostics, dict):
-            raise ValueError("diagnostics must be a JSON object.")
-        timing = _json_value(self.timing_s, path="timing_s")
-        if not isinstance(timing, dict) or any(
-            isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0
-            for value in timing.values()
-        ):
-            raise ValueError("timing_s values must be finite nonnegative numbers.")
-        object.__setattr__(self, "diagnostics", diagnostics)
-        object.__setattr__(self, "timing_s", {key: float(value) for key, value in timing.items()})
-        for name in ("scenario_hash", "config_hash"):
-            value = getattr(self, name)
-            if not isinstance(value, str) or len(value) != 64:
-                raise ValueError(f"{name} must be a SHA-256 hexadecimal digest.")
-            try:
-                int(value, 16)
-            except ValueError as exc:
-                raise ValueError(f"{name} must be a SHA-256 hexadecimal digest.") from exc
-        if self.evaluation is None:
-            if self.evaluated_cost_s is not None or self.feasible:
-                raise ValueError(
-                    "A result without an evaluation cannot have a cost or be feasible."
-                )
-        elif (
-            self.feasible != self.evaluation.feasible
-            or ((self.evaluated_cost_s is None) != (self.evaluation.cost_s is None))
-            or (
-                self.evaluated_cost_s is not None
-                and not np.isclose(
-                    self.evaluated_cost_s, self.evaluation.cost_s, rtol=0, atol=1e-12
-                )
-            )
-        ):
-            raise ValueError("Top-level cost and feasibility must agree with evaluation.")
-
-    def to_dict(self) -> dict[str, JSONValue]:
-        return {
-            "version": self.version,
-            "method": self.method,
-            "initialization": self.initialization,
-            "route_m": None if self.route_m is None else [list(point) for point in self.route_m],
-            "evaluated_cost_s": self.evaluated_cost_s,
-            "feasible": self.feasible,
-            "solver_success": self.solver_success,
-            "termination_reason": self.termination_reason,
-            "diagnostics": _json_value(self.diagnostics),
-            "timing_s": _json_value(self.timing_s),
-            "scenario_hash": self.scenario_hash,
-            "config_hash": self.config_hash,
-            "evaluation": None if self.evaluation is None else self.evaluation.to_dict(),
-        }
-
-    @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "PlannerResult":
-        if not isinstance(data, Mapping) or data.get("version") != 2:
-            raise ValueError("Expected a version 2 planner result object.")
-        allowed = {
-            "version",
-            "method",
-            "initialization",
-            "route_m",
-            "evaluated_cost_s",
-            "feasible",
-            "solver_success",
-            "termination_reason",
-            "diagnostics",
-            "timing_s",
-            "scenario_hash",
-            "config_hash",
-            "evaluation",
-        }
-        if set(data) - allowed:
-            raise ValueError("Planner result contains unknown fields.")
-        try:
-            evaluation = data.get("evaluation")
-            return cls(
-                version=data["version"],
-                method=data["method"],
-                initialization=data["initialization"],
-                route_m=None if data.get("route_m") is None else tuple(map(tuple, data["route_m"])),
-                evaluated_cost_s=data.get("evaluated_cost_s"),
-                feasible=data["feasible"],
-                solver_success=data["solver_success"],
-                termination_reason=data["termination_reason"],
-                diagnostics=data.get("diagnostics", {}),
-                timing_s=data.get("timing_s", {}),
-                scenario_hash=data["scenario_hash"],
-                config_hash=data["config_hash"],
-                evaluation=None if evaluation is None else RouteEvaluation.from_dict(evaluation),
-            )
-        except (KeyError, TypeError) as exc:
-            raise ValueError("Malformed planner result.") from exc
 
 
 def _route_profile_points(route: FloatArray, count: int) -> tuple[FloatArray, FloatArray]:
@@ -850,9 +642,6 @@ def uniform_terrain_fixture() -> TerrainScenario:
 
 
 __all__ = [
-    "PlannerConfig",
-    "PlannerMethod",
-    "PlannerResult",
     "RouteEvaluation",
     "TerrainField",
     "TerrainScenario",

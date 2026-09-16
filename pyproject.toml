@@ -4,14 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "path-planning-ode"
-version = "0.2.0"
+version = "0.3.0"
 description = "An interactive exploration of weighted-distance path planning"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.1,<3", "scipy>=1.14,<2", "shapely>=2.0,<3"]
-
-[project.scripts]
-run-terrain-benchmarks = "path_planning_ode.experiments:cli_main"
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.9,<4"]
@@ -22,9 +19,6 @@ dev = ["pytest>=8,<10", "sympy>=1.13,<2", "ruff>=0.11"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/path_planning_ode"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"experiments/protocol.json" = "path_planning_ode/data/protocol.json"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
