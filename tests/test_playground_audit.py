@@ -202,7 +202,9 @@ def test_newton_step_uses_core_ode_with_pin_rows_and_columns_removed():
     delta = advanced.path[free_vertices] - state.path[free_vertices]
     ratios = delta[np.abs(expected) > 1e-10] / expected[np.abs(expected) > 1e-10]
     np.testing.assert_allclose(ratios, ratios[0], rtol=2e-10, atol=2e-10)
-    assert 0 < ratios[0] <= 1
+    # Reconstructing delta from (path + direction) - path can exceed a unit
+    # step by a few ulps on a different BLAS/platform combination.
+    assert 0 < ratios[0] <= 1 + 2e-14
     np.testing.assert_array_equal(advanced.path[3], state.path[3])
     assert advanced.metrics.ode_residual_norm < state.metrics.ode_residual_norm
 
